@@ -25,19 +25,13 @@ class ProxyServer extends EventEmitter {
         this.middlewareManager = options.middlewareManager;
         
         // 拦截器管理器
-        this.interceptorManager = options.interceptorManager;
+        // this.interceptorManager = options.interceptorManager;
         
         // TLS管理器
-        this.tlsManager = options.tlsManager;
+        // this.tlsManager = options.tlsManager;
         
-        // 请求处理引擎
-        this.requestEngine = options.requestEngine;
-        
-        // 连接处理引擎
-        this.connectEngine = options.connectEngine;
-        
-        // 升级处理引擎
-        this.upgradeEngine = options.upgradeEngine;
+        // 处理引擎管理器
+        this.engineManager = options.engineManager;
         
         // HTTP服务器实例
         this.server = null;
@@ -287,7 +281,8 @@ class ProxyServer extends EventEmitter {
         
         try {
             if (this.requestEngine) {
-                await this.requestEngine.handle(context);
+                // await this.requestEngine.handle(context);
+                await this.engineManager.handleRequest(context);
             } else {
                 // 默认处理逻辑
                 res.writeHead(502, { 'Content-Type': 'text/plain' });
@@ -322,7 +317,8 @@ class ProxyServer extends EventEmitter {
         
         try {
             if (this.connectEngine) {
-                await this.connectEngine.handle(context);
+                // await this.connectEngine.handle(context);
+                await this.engineManager.handleConnect(context);
             } else {
                 // 默认拒绝CONNECT请求
                 socket.write('HTTP/1.1 502 Bad Gateway\r\n\r\n');
@@ -355,7 +351,8 @@ class ProxyServer extends EventEmitter {
         
         try {
             if (this.upgradeEngine) {
-                await this.upgradeEngine.handle(context);
+                // await this.upgradeEngine.handle(context);
+                await this.engineManager.handleUpgrade(context);
             } else {
                 // 默认拒绝升级请求
                 socket.write('HTTP/1.1 502 Bad Gateway\r\n\r\n');

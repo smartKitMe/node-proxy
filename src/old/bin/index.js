@@ -2,7 +2,7 @@
 require('babel-polyfill');
 const mitmproxy = require('../mitmproxy/index');
 const program = require('commander');
-const packageJson = require('../../package.json');
+const packageJson = require('../../../package.json');
 const tlsUtils = require('../tls/tlsUtils');
 const fs = require('fs');
 const path = require('path');

@@ -130,7 +130,7 @@ class CertificateManager extends EventEmitter {
             
             this.stats.generated++;
             
-            if (this.logger && this.logger.isDebugEnabled()) {
+            if (this.logger) {
                 this.logger.debug('Certificate generated', {
                     hostname: normalizedHostname
                 });

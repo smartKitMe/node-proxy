@@ -6,7 +6,7 @@ const MetricsCollector = require('./foundation/monitoring/MetricsCollector');
 const CertificateManager = require('./services/tls/CertificateManager');
 const MiddlewareManager = require('./core/middleware/MiddlewareManager');
 const InterceptorManager = require('./core/interceptors/InterceptorManager');
-
+const EngineManager = require('./core/engines/EngineManager');
 // 导出类型定义
 const { RequestContext, ConnectContext, UpgradeContext } = require('./types/ProxyTypes');
 
@@ -63,6 +63,19 @@ class NodeMITMProxy extends EventEmitter {
             logger: this.logger,
             metrics: this.metrics
         });
+
+        // 初始化引擎管理器
+        this.engineManager = new EngineManager({
+            ...options.engines,
+            config: this.config,
+            logger: this.logger,
+            metrics: this.metrics,
+            certificateManager: this.certificateManager,
+            middlewareManager: this.middlewareManager,
+            interceptorManager: this.interceptorManager
+        });
+        
+        
         
         // 初始化代理服务器
         this.proxyServer = new ProxyServer({
@@ -72,7 +85,8 @@ class NodeMITMProxy extends EventEmitter {
             metrics: this.metrics,
             certificateManager: this.certificateManager,
             middlewareManager: this.middlewareManager,
-            interceptorManager: this.interceptorManager
+            interceptorManager: this.interceptorManager,
+            engineManager: this.engineManager
         });
         
         // 状态标记
@@ -205,6 +219,7 @@ class NodeMITMProxy extends EventEmitter {
             proxy: this.proxyServer.getStatus(),
             middleware: this.middlewareManager ? this.middlewareManager.getStats() : {},
             interceptor: this.interceptorManager ? this.interceptorManager.getStats() : {},
+            engines: this.engineManager ? this.engineManager.getStats() : {},
             certificate: this.certificateManager ? this.certificateManager.getStats() : {},
             metrics: this.metrics ? this.metrics.getSnapshot() : {}
         };
@@ -265,6 +280,10 @@ class NodeMITMProxy extends EventEmitter {
                 this.interceptorManager.destroy();
             }
             
+            if (this.engineManager) {
+                this.engineManager.destroy();
+            }
+            
             if (this.middlewareManager) {
                 this.middlewareManager.destroy();
             }
@@ -307,6 +326,8 @@ module.exports.MetricsCollector = MetricsCollector;
 module.exports.CertificateManager = CertificateManager;
 module.exports.MiddlewareManager = MiddlewareManager;
 module.exports.InterceptorManager = InterceptorManager;
+module.exports.EngineManager = EngineManager;
+module.exports.TlsManager = require('./core/tls/TlsManager');
 
 // 导出类型定义
 module.exports.RequestContext = RequestContext;
