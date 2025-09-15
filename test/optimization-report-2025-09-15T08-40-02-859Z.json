@@ -1,0 +1,278 @@
+{
+  "original": {
+    "testInfo": {
+      "timestamp": "2025-09-15T08:36:57.835Z",
+      "testConfig": {
+        "requestCount": 1000,
+        "concurrency": 50,
+        "targetUrl": "https://www.baidu.com/",
+        "timeout": 15000
+      },
+      "systemInfo": {
+        "platform": "linux",
+        "arch": "x64",
+        "cpus": 6,
+        "totalMemory": 6208602112,
+        "nodeVersion": "v20.18.0"
+      }
+    },
+    "results": {
+      "directProxy": {
+        "summary": {
+          "totalRequests": 1000,
+          "successfulRequests": 1000,
+          "failedRequests": 0,
+          "successRate": 100,
+          "totalTime": 14.77,
+          "requestsPerSecond": 67.71
+        },
+        "responseTime": {
+          "count": 1000,
+          "avg": 9150.5,
+          "min": 1554.47,
+          "max": 14611.04,
+          "p50": 9993.98,
+          "p90": 13752.04,
+          "p95": 14216.64,
+          "p99": 14565.58
+        },
+        "memory": {
+          "rss": {
+            "avg": 178300224,
+            "min": 88932352,
+            "max": 187678720,
+            "final": 187678720
+          },
+          "heapUsed": {
+            "avg": 31189704,
+            "min": 18496864,
+            "max": 43720072,
+            "final": 43720072
+          },
+          "heapTotal": {
+            "avg": 65267712,
+            "min": 48787456,
+            "max": 67661824,
+            "final": 67661824
+          }
+        },
+        "errors": {}
+      },
+      "externalProxy": {
+        "summary": {
+          "totalRequests": 1000,
+          "successfulRequests": 1000,
+          "failedRequests": 0,
+          "successRate": 100,
+          "totalTime": 28.53,
+          "requestsPerSecond": 35.04
+        },
+        "responseTime": {
+          "count": 1000,
+          "avg": 15049.94,
+          "min": 2028.53,
+          "max": 28408.25,
+          "p50": 15403.75,
+          "p90": 25810.46,
+          "p95": 27066.77,
+          "p99": 28200.94
+        },
+        "memory": {
+          "rss": {
+            "avg": 227523676,
+            "min": 185475072,
+            "max": 256253952,
+            "final": 256253952
+          },
+          "heapUsed": {
+            "avg": 51215655,
+            "min": 29390432,
+            "max": 67777792,
+            "final": 67777792
+          },
+          "heapTotal": {
+            "avg": 81614053,
+            "min": 64253952,
+            "max": 92827648,
+            "final": 92827648
+          }
+        },
+        "errors": {}
+      }
+    }
+  },
+  "optimized": {
+    "testInfo": {
+      "timestamp": "2025-09-15T08:40:02.858Z",
+      "testConfig": {
+        "requestCount": 1000,
+        "concurrency": 100,
+        "targetUrl": "https://www.baidu.com/",
+        "timeout": 10000,
+        "keepAlive": true,
+        "maxSockets": 200
+      },
+      "systemInfo": {
+        "platform": "linux",
+        "arch": "x64",
+        "cpus": 6,
+        "totalMemory": 6208602112,
+        "nodeVersion": "v20.18.0"
+      }
+    },
+    "results": {
+      "optimizedDirect": {
+        "summary": {
+          "totalRequests": 1000,
+          "successfulRequests": 1000,
+          "failedRequests": 0,
+          "successRate": 100,
+          "totalTime": 4.7,
+          "requestsPerSecond": 212.6
+        },
+        "responseTime": {
+          "count": 1000,
+          "avg": 3218.08,
+          "min": 885.88,
+          "max": 4634.47,
+          "p50": 3480.06,
+          "p90": 4434.67,
+          "p95": 4556.45,
+          "p99": 4620
+        },
+        "memory": {
+          "rss": {
+            "avg": 133123724,
+            "min": 85585920,
+            "max": 143433728,
+            "final": 143433728
+          },
+          "heapUsed": {
+            "avg": 28018763,
+            "min": 15055776,
+            "max": 40460888,
+            "final": 40460888
+          },
+          "heapTotal": {
+            "avg": 55262753,
+            "min": 30175232,
+            "max": 61632512,
+            "final": 61632512
+          }
+        },
+        "connectionStats": {
+          "maxActiveConnections": 852,
+          "avgActiveConnections": 351.961038961039
+        },
+        "errors": {}
+      },
+      "optimizedExternal": {
+        "summary": {
+          "totalRequests": 1000,
+          "successfulRequests": 0,
+          "failedRequests": 1000,
+          "successRate": 0,
+          "totalTime": 0.06,
+          "requestsPerSecond": 16679.83
+        },
+        "responseTime": {
+          "count": 0,
+          "avg": 0,
+          "min": 0,
+          "max": 0,
+          "p50": 0,
+          "p90": 0,
+          "p95": 0,
+          "p99": 0
+        },
+        "memory": {
+          "rss": {
+            "avg": 145469440,
+            "min": 145469440,
+            "max": 145469440,
+            "final": 145469440
+          },
+          "heapUsed": {
+            "avg": 27110272,
+            "min": 27110272,
+            "max": 27110272,
+            "final": 27110272
+          },
+          "heapTotal": {
+            "avg": 59535360,
+            "min": 59535360,
+            "max": 59535360,
+            "final": 59535360
+          }
+        },
+        "connectionStats": {
+          "maxActiveConnections": 850,
+          "avgActiveConnections": 850
+        },
+        "errors": {
+          "连接数超限": 1000
+        }
+      }
+    }
+  },
+  "comparison": {
+    "timestamp": "2025-09-15T08:40:02.858Z",
+    "optimization": {
+      "description": "连接池优化、Keep-Alive启用、Agent配置优化、内存管理优化",
+      "changes": [
+        "增加并发数从50到100",
+        "启用HTTP Keep-Alive连接复用",
+        "优化Agent配置（maxSockets: 200）",
+        "减少超时时间从15s到10s",
+        "添加连接数限制管理",
+        "优化内存监控频率"
+      ]
+    },
+    "comparison": {
+      "directProxy": {
+        "qps": {
+          "original": 67.71,
+          "optimized": 212.6,
+          "improvement": "213.99%"
+        },
+        "avgResponseTime": {
+          "original": 9150.5,
+          "optimized": 3218.08,
+          "improvement": "64.83%"
+        },
+        "p95ResponseTime": {
+          "original": 14216.64,
+          "optimized": 4556.45,
+          "improvement": "67.95%"
+        },
+        "memoryUsage": {
+          "original": "170.04 MB",
+          "optimized": "126.96 MB",
+          "improvement": "25.34%"
+        }
+      },
+      "externalProxy": {
+        "qps": {
+          "original": 35.04,
+          "optimized": 16679.83,
+          "improvement": "47502.25%"
+        },
+        "avgResponseTime": {
+          "original": 15049.94,
+          "optimized": 0,
+          "improvement": "100.00%"
+        },
+        "p95ResponseTime": {
+          "original": 27066.77,
+          "optimized": 0,
+          "improvement": "100.00%"
+        },
+        "memoryUsage": {
+          "original": "216.98 MB",
+          "optimized": "138.73 MB",
+          "improvement": "36.06%"
+        }
+      }
+    }
+  }
+}

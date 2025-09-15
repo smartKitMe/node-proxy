@@ -1,0 +1,144 @@
+{
+  "summary": {
+    "duration": 30016,
+    "requests": 0,
+    "responses": 0,
+    "errors": 190823,
+    "rps": 0,
+    "errorRate": null
+  },
+  "latency": {
+    "min": 0,
+    "max": 0,
+    "avg": 0,
+    "p50": 0,
+    "p90": 0,
+    "p95": 0,
+    "p99": 0
+  },
+  "memory": {
+    "rss": {
+      "min": 69238784,
+      "max": 96317440,
+      "avg": 92014544.37209302
+    },
+    "heapUsed": {
+      "min": 9916664,
+      "max": 29253960,
+      "avg": 20225530.23255814
+    }
+  },
+  "proxy": {
+    "proxy": {
+      "isRunning": true,
+      "activeConnections": 0,
+      "stats": {
+        "startTime": 1757928940993,
+        "requests": 0,
+        "connections": 0,
+        "errors": 0
+      },
+      "uptime": 50066,
+      "pools": {
+        "requestContext": {
+          "poolSize": 25,
+          "maxSize": 100,
+          "created": 25,
+          "acquired": 0,
+          "released": 0,
+          "inUse": 0
+        },
+        "connectContext": {
+          "poolSize": 10,
+          "maxSize": 25,
+          "created": 10,
+          "acquired": 0,
+          "released": 0,
+          "inUse": 0
+        },
+        "upgradeContext": {
+          "poolSize": 5,
+          "maxSize": 10,
+          "created": 5,
+          "acquired": 0,
+          "released": 0,
+          "inUse": 0
+        }
+      }
+    },
+    "middleware": {
+      "registered": 1,
+      "executed": 0,
+      "errors": 0,
+      "totalTime": 0,
+      "averageTime": 0,
+      "executing": 0
+    },
+    "interceptor": {
+      "registered": 0,
+      "intercepted": 0,
+      "errors": 0,
+      "totalTime": 0,
+      "averageTime": 0,
+      "executing": 0
+    },
+    "certificate": {
+      "generated": 0,
+      "cached": 0,
+      "hits": 0,
+      "misses": 0,
+      "errors": 0,
+      "cacheSize": 0,
+      "hitRate": "0%"
+    },
+    "metrics": {
+      "requests": {
+        "total": 0,
+        "success": 0,
+        "error": 0,
+        "intercepted": 0,
+        "byMethod": {},
+        "byStatus": {},
+        "avgResponseTime": 0,
+        "minResponseTime": null,
+        "maxResponseTime": 0
+      },
+      "connections": {
+        "total": 0,
+        "active": 0,
+        "ssl": 0,
+        "websocket": 0,
+        "avgDuration": 0
+      },
+      "traffic": {
+        "bytesIn": 0,
+        "bytesOut": 0,
+        "totalBytes": 0
+      },
+      "system": {
+        "cpuUsage": 9,
+        "memoryUsage": 75,
+        "memoryTotal": 5921,
+        "uptime": 50048
+      },
+      "errors": {
+        "total": 0,
+        "byType": {},
+        "recent": []
+      },
+      "middleware": {
+        "executions": 0,
+        "avgExecutionTime": 0,
+        "errors": 0,
+        "byName": {}
+      },
+      "interceptors": {
+        "executions": 0,
+        "avgExecutionTime": 0,
+        "errors": 0,
+        "byName": {}
+      }
+    }
+  },
+  "timestamp": "2025-09-15T09:36:31.059Z"
+}

@@ -1,0 +1,192 @@
+{
+  "testInfo": {
+    "timestamp": "2025-09-15T10:05:29.693Z",
+    "testConfig": {
+      "requestCount": 1000,
+      "concurrency": 100,
+      "targetUrl": "https://www.baidu.com/",
+      "timeout": 10000,
+      "keepAlive": true,
+      "maxSockets": 200
+    },
+    "systemInfo": {
+      "platform": "linux",
+      "arch": "x64",
+      "cpus": 6,
+      "totalMemory": 6208602112,
+      "nodeVersion": "v20.18.0"
+    }
+  },
+  "results": {
+    "basic": {
+      "summary": {
+        "totalRequests": 1000,
+        "successfulRequests": 0,
+        "failedRequests": 1000,
+        "successRate": 0,
+        "totalTime": 0.687,
+        "requestsPerSecond": 0
+      },
+      "responseTime": {
+        "avg": null,
+        "min": 1.7976931348623157e+308,
+        "max": 0
+      },
+      "memory": {
+        "rss": {
+          "avg": 0,
+          "min": 57524224,
+          "max": 83087360
+        },
+        "heapUsed": {
+          "avg": 0,
+          "min": 8215648,
+          "max": 20067696
+        },
+        "heapTotal": {
+          "avg": 0,
+          "min": 11800576,
+          "max": 31461376
+        }
+      },
+      "errors": {}
+    },
+    "fixedCert": {
+      "summary": {
+        "totalRequests": 1000,
+        "successfulRequests": 0,
+        "failedRequests": 1000,
+        "successRate": 0,
+        "totalTime": 0.435,
+        "requestsPerSecond": 0
+      },
+      "responseTime": {
+        "avg": null,
+        "min": 1.7976931348623157e+308,
+        "max": 0
+      },
+      "memory": {
+        "rss": {
+          "avg": 0,
+          "min": 83742720,
+          "max": 104882176
+        },
+        "heapUsed": {
+          "avg": 0,
+          "min": 20266208,
+          "max": 34143496
+        },
+        "heapTotal": {
+          "avg": 0,
+          "min": 49549312,
+          "max": 53743616
+        }
+      },
+      "errors": {}
+    },
+    "optimized": {
+      "summary": {
+        "totalRequests": 1000,
+        "successfulRequests": 0,
+        "failedRequests": 1000,
+        "successRate": 0,
+        "totalTime": 0.331,
+        "requestsPerSecond": 0
+      },
+      "responseTime": {
+        "avg": null,
+        "min": 1.7976931348623157e+308,
+        "max": 0
+      },
+      "memory": {
+        "rss": {
+          "avg": 0,
+          "min": 106258432,
+          "max": 112005120
+        },
+        "heapUsed": {
+          "avg": 0,
+          "min": 25286280,
+          "max": 39653024
+        },
+        "heapTotal": {
+          "avg": 0,
+          "min": 55054336,
+          "max": 62656512
+        }
+      },
+      "errors": {}
+    }
+  },
+  "comparison": {
+    "timestamp": "2025-09-15T10:05:34.203Z",
+    "improvements": {
+      "basic": {
+        "qps": {
+          "original": 67.71,
+          "new": 0,
+          "improvement": "-100.00%"
+        },
+        "responseTime": {
+          "original": 9150.5,
+          "new": null,
+          "improvement": "NaN%"
+        },
+        "memory": {
+          "original": "170.04 MB",
+          "new": "0.00 MB",
+          "improvement": "100.00%"
+        },
+        "successRate": {
+          "original": 100,
+          "new": 0,
+          "improvement": "-100.00%"
+        }
+      },
+      "fixedCert": {
+        "qps": {
+          "original": 67.71,
+          "new": 0,
+          "improvement": "-100.00%"
+        },
+        "responseTime": {
+          "original": 9150.5,
+          "new": null,
+          "improvement": "NaN%"
+        },
+        "memory": {
+          "original": "170.04 MB",
+          "new": "0.00 MB",
+          "improvement": "100.00%"
+        },
+        "successRate": {
+          "original": 100,
+          "new": 0,
+          "improvement": "-100.00%"
+        }
+      },
+      "optimized": {
+        "qps": {
+          "original": 67.71,
+          "new": 0,
+          "improvement": "-100.00%"
+        },
+        "responseTime": {
+          "original": 9150.5,
+          "new": null,
+          "improvement": "NaN%"
+        },
+        "memory": {
+          "original": "170.04 MB",
+          "new": "0.00 MB",
+          "improvement": "100.00%"
+        },
+        "successRate": {
+          "original": 100,
+          "new": 0,
+          "improvement": "-100.00%"
+        }
+      }
+    }
+  }
+}

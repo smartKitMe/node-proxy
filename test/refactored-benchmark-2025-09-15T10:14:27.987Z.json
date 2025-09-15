@@ -1,0 +1,210 @@
+{
+  "testInfo": {
+    "timestamp": "2025-09-15T10:14:27.987Z",
+    "testConfig": {
+      "requestCount": 1000,
+      "concurrency": 100,
+      "targetUrl": "http://127.0.0.1:3333/test",
+      "timeout": 10000,
+      "keepAlive": true,
+      "maxSockets": 200
+    },
+    "systemInfo": {
+      "platform": "linux",
+      "arch": "x64",
+      "cpus": 6,
+      "totalMemory": 6208602112,
+      "nodeVersion": "v20.18.0"
+    }
+  },
+  "results": {
+    "basic": {
+      "summary": {
+        "totalRequests": 1000,
+        "successfulRequests": 0,
+        "failedRequests": 1000,
+        "successRate": 0,
+        "totalTime": 1.249,
+        "requestsPerSecond": 0
+      },
+      "responseTime": {
+        "avg": 0,
+        "min": 1.7976931348623157e+308,
+        "max": 0,
+        "p50": 0,
+        "p90": 0,
+        "p95": 0,
+        "p99": 0
+      },
+      "memory": {
+        "rss": {
+          "avg": 0,
+          "min": 57348096,
+          "max": 62283776
+        },
+        "heapUsed": {
+          "avg": 0,
+          "min": 8249832,
+          "max": 12019416
+        },
+        "heapTotal": {
+          "avg": 0,
+          "min": 16625664,
+          "max": 17149952
+        }
+      },
+      "errors": {
+        "HTTP 502": 1000
+      }
+    },
+    "fixedCert": {
+      "summary": {
+        "totalRequests": 1000,
+        "successfulRequests": 0,
+        "failedRequests": 1000,
+        "successRate": 0,
+        "totalTime": 1.459,
+        "requestsPerSecond": 0
+      },
+      "responseTime": {
+        "avg": 0,
+        "min": 1.7976931348623157e+308,
+        "max": 0,
+        "p50": 0,
+        "p90": 0,
+        "p95": 0,
+        "p99": 0
+      },
+      "memory": {
+        "rss": {
+          "avg": 0,
+          "min": 87281664,
+          "max": 91148288
+        },
+        "heapUsed": {
+          "avg": 0,
+          "min": 17621184,
+          "max": 29987192
+        },
+        "heapTotal": {
+          "avg": 0,
+          "min": 48082944,
+          "max": 48607232
+        }
+      },
+      "errors": {
+        "HTTP 502": 1000
+      }
+    },
+    "optimized": {
+      "summary": {
+        "totalRequests": 1000,
+        "successfulRequests": 0,
+        "failedRequests": 1000,
+        "successRate": 0,
+        "totalTime": 1.038,
+        "requestsPerSecond": 0
+      },
+      "responseTime": {
+        "avg": 0,
+        "min": 1.7976931348623157e+308,
+        "max": 0,
+        "p50": 0,
+        "p90": 0,
+        "p95": 0,
+        "p99": 0
+      },
+      "memory": {
+        "rss": {
+          "avg": 0,
+          "min": 104591360,
+          "max": 105938944
+        },
+        "heapUsed": {
+          "avg": 0,
+          "min": 21650680,
+          "max": 25584120
+        },
+        "heapTotal": {
+          "avg": 0,
+          "min": 53850112,
+          "max": 54112256
+        }
+      },
+      "errors": {
+        "HTTP 502": 1000
+      }
+    }
+  },
+  "comparison": {
+    "timestamp": "2025-09-15T10:14:34.824Z",
+    "improvements": {
+      "basic": {
+        "qps": {
+          "original": 67.71,
+          "new": 0,
+          "improvement": "-100.00%"
+        },
+        "responseTime": {
+          "original": 9150.5,
+          "new": 0,
+          "improvement": "100.00%"
+        },
+        "memory": {
+          "original": "170.04 MB",
+          "new": "0.00 MB",
+          "improvement": "100.00%"
+        },
+        "successRate": {
+          "original": 100,
+          "new": 0,
+          "improvement": "-100.00%"
+        }
+      },
+      "fixedCert": {
+        "qps": {
+          "original": 67.71,
+          "new": 0,
+          "improvement": "-100.00%"
+        },
+        "responseTime": {
+          "original": 9150.5,
+          "new": 0,
+          "improvement": "100.00%"
+        },
+        "memory": {
+          "original": "170.04 MB",
+          "new": "0.00 MB",
+          "improvement": "100.00%"
+        },
+        "successRate": {
+          "original": 100,
+          "new": 0,
+          "improvement": "-100.00%"
+        }
+      },
+      "optimized": {
+        "qps": {
+          "original": 67.71,
+          "new": 0,
+          "improvement": "-100.00%"
+        },
+        "responseTime": {
+          "original": 9150.5,
+          "new": 0,
+          "improvement": "100.00%"
+        },
+        "memory": {
+          "original": "170.04 MB",
+          "new": "0.00 MB",
+          "improvement": "100.00%"
+        },
+        "successRate": {
+          "original": 100,
+          "new": 0,
+          "improvement": "-100.00%"
+        }
+      }
+    }
+  }
+}

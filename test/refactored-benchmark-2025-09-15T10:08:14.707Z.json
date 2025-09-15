@@ -1,0 +1,198 @@
+{
+  "testInfo": {
+    "timestamp": "2025-09-15T10:08:14.707Z",
+    "testConfig": {
+      "requestCount": 1000,
+      "concurrency": 100,
+      "targetUrl": "http://127.0.0.1:3333/test",
+      "timeout": 10000,
+      "keepAlive": true,
+      "maxSockets": 200
+    },
+    "systemInfo": {
+      "platform": "linux",
+      "arch": "x64",
+      "cpus": 6,
+      "totalMemory": 6208602112,
+      "nodeVersion": "v20.18.0"
+    }
+  },
+  "results": {
+    "basic": {
+      "summary": {
+        "totalRequests": 1000,
+        "successfulRequests": 0,
+        "failedRequests": 1000,
+        "successRate": 0,
+        "totalTime": 0.629,
+        "requestsPerSecond": 0
+      },
+      "responseTime": {
+        "avg": null,
+        "min": 1.7976931348623157e+308,
+        "max": 0
+      },
+      "memory": {
+        "rss": {
+          "avg": 0,
+          "min": 1.7976931348623157e+308,
+          "max": 0
+        },
+        "heapUsed": {
+          "avg": 0,
+          "min": 1.7976931348623157e+308,
+          "max": 0
+        },
+        "heapTotal": {
+          "avg": 0,
+          "min": 1.7976931348623157e+308,
+          "max": 0
+        }
+      },
+      "errors": {
+        "Request error: connect ECONNREFUSED 127.0.0.1:8081": 1000
+      }
+    },
+    "fixedCert": {
+      "summary": {
+        "totalRequests": 1000,
+        "successfulRequests": 0,
+        "failedRequests": 1000,
+        "successRate": 0,
+        "totalTime": 0.499,
+        "requestsPerSecond": 0
+      },
+      "responseTime": {
+        "avg": null,
+        "min": 1.7976931348623157e+308,
+        "max": 0
+      },
+      "memory": {
+        "rss": {
+          "avg": 0,
+          "min": 1.7976931348623157e+308,
+          "max": 0
+        },
+        "heapUsed": {
+          "avg": 0,
+          "min": 1.7976931348623157e+308,
+          "max": 0
+        },
+        "heapTotal": {
+          "avg": 0,
+          "min": 1.7976931348623157e+308,
+          "max": 0
+        }
+      },
+      "errors": {
+        "Request error: connect ECONNREFUSED 127.0.0.1:8082": 1000
+      }
+    },
+    "optimized": {
+      "summary": {
+        "totalRequests": 1000,
+        "successfulRequests": 0,
+        "failedRequests": 1000,
+        "successRate": 0,
+        "totalTime": 0.781,
+        "requestsPerSecond": 0
+      },
+      "responseTime": {
+        "avg": null,
+        "min": 1.7976931348623157e+308,
+        "max": 0
+      },
+      "memory": {
+        "rss": {
+          "avg": 0,
+          "min": 1.7976931348623157e+308,
+          "max": 0
+        },
+        "heapUsed": {
+          "avg": 0,
+          "min": 1.7976931348623157e+308,
+          "max": 0
+        },
+        "heapTotal": {
+          "avg": 0,
+          "min": 1.7976931348623157e+308,
+          "max": 0
+        }
+      },
+      "errors": {
+        "Request error: connect ECONNREFUSED 127.0.0.1:8083": 1000
+      }
+    }
+  },
+  "comparison": {
+    "timestamp": "2025-09-15T10:08:19.641Z",
+    "improvements": {
+      "basic": {
+        "qps": {
+          "original": 67.71,
+          "new": 0,
+          "improvement": "-100.00%"
+        },
+        "responseTime": {
+          "original": 9150.5,
+          "new": null,
+          "improvement": "NaN%"
+        },
+        "memory": {
+          "original": "170.04 MB",
+          "new": "0.00 MB",
+          "improvement": "100.00%"
+        },
+        "successRate": {
+          "original": 100,
+          "new": 0,
+          "improvement": "-100.00%"
+        }
+      },
+      "fixedCert": {
+        "qps": {
+          "original": 67.71,
+          "new": 0,
+          "improvement": "-100.00%"
+        },
+        "responseTime": {
+          "original": 9150.5,
+          "new": null,
+          "improvement": "NaN%"
+        },
+        "memory": {
+          "original": "170.04 MB",
+          "new": "0.00 MB",
+          "improvement": "100.00%"
+        },
+        "successRate": {
+          "original": 100,
+          "new": 0,
+          "improvement": "-100.00%"
+        }
+      },
+      "optimized": {
+        "qps": {
+          "original": 67.71,
+          "new": 0,
+          "improvement": "-100.00%"
+        },
+        "responseTime": {
+          "original": 9150.5,
+          "new": null,
+          "improvement": "NaN%"
+        },
+        "memory": {
+          "original": "170.04 MB",
+          "new": "0.00 MB",
+          "improvement": "100.00%"
+        },
+        "successRate": {
+          "original": 100,
+          "new": 0,
+          "improvement": "-100.00%"
+        }
+      }
+    }
+  }
+}
