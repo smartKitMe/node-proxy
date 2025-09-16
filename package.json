@@ -1,30 +1,119 @@
 {
   "name": "node-proxy",
-  "version": "1.0.0",
-  "description": "Node.js Proxy",
-  "main": "lib",
-  "bin": "lib/bin/index.js",
+  "version": "4.0.0",
+  "description": "A powerful Node.js MITM (Man-in-the-Middle) proxy server with advanced features including WebSocket support, SOCKS5 proxy, certificate management, request/response interception, and performance monitoring",
+  "main": "lib/index.js",
+  "bin": {
+    "node-proxy": "lib/bin/index.js"
+  },
   "scripts": {
-    "test": "node ./test/ConfigTestCases.test.js",
-    "build": "babel --watch src --out-dir lib",
-    "prepublish": "babel src --out-dir lib"
+    "start": "node lib/index.js",
+    "dev": "nodemon src/index.js",
+    "test": "npm run test:unit && npm run test:integration && npm run test:performance",
+    "test:unit": "node test/unit/run-unit-tests.js",
+    "test:integration": "node test/integration/run-integration-tests.js",
+    "test:performance": "node test/performance/run-performance-tests.js",
+    "test:all": "node test/run-all-tests.js",
+    "test:minimal": "node test/test-case-1-minimal-config.js",
+    "test:direct-response": "node test/test-case-2-direct-response.js",
+    "test:modify-forward": "node test/test-case-3-modify-and-forward.js",
+    "test:socks5": "node test/test-case-4-socks5-proxy.js",
+    "test:websocket": "node test/simple-websocket-test.js",
+    "test:websocket-interceptor": "node test/simple-websocket-interceptor-test.js",
+    "test:proxy-forwarding": "node test/proxy_forwarding_test.js",
+    "build": "babel src --out-dir lib --copy-files",
+    "build:watch": "babel --watch src --out-dir lib --copy-files",
+    "build:production": "NODE_ENV=production babel src --out-dir lib --copy-files --minified",
+    "clean": "rimraf lib",
+    "prebuild": "npm run clean",
+    "prepublishOnly": "npm run build:production && npm run test",
+    "lint": "eslint src test --ext .js",
+    "lint:fix": "eslint src test --ext .js --fix",
+    "format": "prettier --write 'src/**/*.js' 'test/**/*.js' 'examples/**/*.js'",
+    "docs:generate": "jsdoc src -r -d docs/api",
+    "docs:serve": "http-server docs -p 8081",
+    "example:minimal": "node examples/minimal-config-example.js",
+    "example:fixed-cert": "node examples/fixed-cert-example.js",
+    "example:websocket": "node examples/websocket-minimal-config-example.js",
+    "example:websocket-modify": "node examples/websocket-modify-and-forward-example.js",
+    "example:websocket-socks5": "node examples/websocket-socks5-proxy-example.js",
+    "benchmark": "node test/performance/benchmark.js",
+    "coverage": "nyc npm test",
+    "coverage:report": "nyc report --reporter=html",
+    "security:audit": "npm audit",
+    "security:fix": "npm audit fix",
+    "deps:check": "npm-check-updates",
+    "deps:update": "npm-check-updates -u && npm install"
   },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/smartKitMe/node-proxy.git"
   },
+  "bugs": {
+    "url": "https://github.com/smartKitMe/node-proxy/issues"
+  },
   "keywords": [
-    "MITM",
+    "mitm",
     "proxy",
-    "Node"
+    "nodejs",
+    "http-proxy",
+    "https-proxy",
+    "websocket",
+    "websocket-proxy",
+    "socks5",
+    "socks5-proxy",
+    "ssl",
+    "tls",
+    "certificate",
+    "interceptor",
+    "middleware",
+    "request-interception",
+    "response-modification",
+    "network-proxy",
+    "man-in-the-middle",
+    "traffic-analysis",
+    "performance-monitoring",
+    "debugging",
+    "network-debugging",
+    "api-proxy",
+    "reverse-proxy",
+    "forward-proxy"
   ],
-  "author": "liuzm",
+  "author": {
+    "name": "liuzm",
+    "email": "liuzm@example.com",
+    "url": "https://github.com/smartKitMe"
+  },
+  "contributors": [
+    {
+      "name": "liuzm",
+      "email": "liuzm@example.com",
+      "url": "https://github.com/smartKitMe"
+    }
+  ],
   "license": "MIT",
-  "homepage": "https://github.com/smartKitMe/node-proxy.git#readme",
+  "homepage": "https://github.com/smartKitMe/node-proxy#readme",
   "devDependencies": {
     "@babel/cli": "^7.23.0",
     "@babel/core": "^7.23.0",
-    "@babel/preset-env": "^7.23.0"
+    "@babel/preset-env": "^7.23.0",
+    "@babel/plugin-transform-runtime": "^7.23.0",
+    "eslint": "^8.57.0",
+    "eslint-config-standard": "^17.1.0",
+    "eslint-plugin-import": "^2.29.0",
+    "eslint-plugin-node": "^11.1.0",
+    "eslint-plugin-promise": "^6.1.0",
+    "prettier": "^3.2.0",
+    "nodemon": "^3.0.0",
+    "rimraf": "^5.0.0",
+    "jsdoc": "^4.0.0",
+    "http-server": "^14.1.0",
+    "nyc": "^15.1.0",
+    "npm-check-updates": "^16.14.0",
+    "mocha": "^10.2.0",
+    "chai": "^4.4.0",
+    "sinon": "^17.0.0",
+    "supertest": "^6.3.0"
   },
   "dependencies": {
     "agentkeepalive": "^4.6.0",
@@ -43,9 +132,36 @@
     "ws": "^8.18.3"
   },
   "files": [
-    "lib"
+    "lib",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
   ],
   "engines": {
-    "node": ">= 4"
+    "node": ">= 14.0.0",
+    "npm": ">= 6.0.0"
+  },
+  "os": [
+    "darwin",
+    "linux",
+    "win32"
+  ],
+  "cpu": [
+    "x64",
+    "arm64"
+  ],
+  "funding": {
+    "type": "github",
+    "url": "https://github.com/sponsors/smartKitMe"
+  },
+  "config": {
+    "port": 8080,
+    "host": "localhost"
+  },
+  "preferGlobal": false,
+  "private": false,
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
   }
 }
