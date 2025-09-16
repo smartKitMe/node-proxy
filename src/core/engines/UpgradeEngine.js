@@ -2,6 +2,8 @@ const http = require('http');
 const https = require('https');
 const crypto = require('crypto');
 const { pipeline } = require('stream');
+const { InterceptorResult } = require('../../types/InterceptorTypes');
+const ConnectionPoolManager = require('../proxy/ConnectionPoolManager');
 
 /**
  * 升级处理引擎
@@ -14,9 +16,50 @@ class UpgradeEngine {
         this.metrics = options.metrics;
         this.middlewareManager = options.middlewareManager;
         this.interceptorManager = options.interceptorManager;
+        this.tlsManager = options.tlsManager;
         
         // 升级选项
         this.timeout = options.timeout || 30000;
+        this.keepAlive = options.keepAlive !== false;
+        
+        // 连接池管理器
+        this.connectionPool = new ConnectionPoolManager({
+            config: this.config,
+            logger: this.logger,
+            metrics: this.metrics,
+            maxSockets: options.maxSockets || 256,
+            maxFreeSockets: options.maxFreeSockets || 256,
+            timeout: this.timeout,
+            keepAlive: this.keepAlive,
+            keepAliveMsecs: options.keepAliveMsecs || 1000,
+            proxy: options.proxy,
+            proxyAuth: options.proxyAuth
+        });
+        
+        // 获取优化的HTTP/HTTPS代理
+        this.httpAgent = this.connectionPool.getHttpAgent();
+        this.httpsAgent = this.connectionPool.getHttpsAgent();
+        
+        // 代理转发配置
+        this.proxyConfig = null;
+        if (options.proxy) {
+            try {
+                const proxyUrl = new URL(options.proxy);
+                this.proxyConfig = {
+                    url: options.proxy,
+                    hostname: proxyUrl.hostname,
+                    port: proxyUrl.port || (proxyUrl.protocol === 'https:' ? 443 : 80),
+                    protocol: proxyUrl.protocol,
+                    auth: options.proxyAuth || proxyUrl.username ? 
+                        `${proxyUrl.username}:${proxyUrl.password}` : null,
+                    enabled: true
+                };
+            } catch (error) {
+                this.logger.warn('Invalid proxy URL, proxy disabled', { proxy: options.proxy, error: error.message });
+                this.proxyConfig = null;
+            }
+        }
+        this.proxyAuth = options.proxyAuth;
         
         // 活跃连接跟踪
         this.activeConnections = new Set();
@@ -56,13 +99,32 @@ class UpgradeEngine {
                 const shouldIntercept = await this.interceptorManager.shouldInterceptUpgrade(context);
                 if (shouldIntercept) {
                     await this.interceptorManager.interceptUpgrade(context);
-                    context.markIntercepted();
+                    
+                    // 处理拦截器响应
+                    if (context.interceptorResult) {
+                        const result = context.interceptorResult;
+                        
+                        if (result.shouldDirectResponse()) {
+                            // 直接返回拦截器内容
+                            await this._handleDirectUpgradeResponse(context, result);
+                            context.markIntercepted();
+                            if (context.stopped) return;
+                        } else if (result.shouldModifyAndForward()) {
+                            // 修改升级请求后转发
+                            this._applyUpgradeModifications(context, result);
+                            context.markIntercepted();
+                        }
+                    } else {
+                        // 兼容旧的拦截方式
+                        context.markIntercepted();
+                    }
+                    
                     if (context.stopped) return;
                 }
             }
             
-            // 如果没有被拦截，则转发升级请求
-            if (!context.intercepted) {
+            // 转发升级请求（如果没有直接响应）
+            if (!context.intercepted || (context.interceptorResult && context.interceptorResult.shouldModifyAndForward())) {
                 await this._forwardUpgrade(context);
             }
             
@@ -153,14 +215,51 @@ class UpgradeEngine {
                 timeout: this.timeout
             };
             
+            // 如果配置了代理转发，修改请求选项
+            if (this.proxyConfig) {
+                const proxyUrl = new URL(this.proxyConfig);
+                options.hostname = proxyUrl.hostname;
+                options.port = proxyUrl.port || (proxyUrl.protocol === 'https:' ? 443 : 80);
+                options.path = `${target.protocol}//${target.host}${target.path}`; // 使用完整URL作为路径
+                
+                // 添加代理认证
+                if (this.proxyAuth) {
+                    options.headers['Proxy-Authorization'] = `Basic ${Buffer.from(this.proxyAuth).toString('base64')}`;
+                }
+                
+                // 添加代理相关头部
+                options.headers['Host'] = target.host;
+                options.headers['Proxy-Connection'] = 'keep-alive';
+                
+                // 记录代理转发信息
+                if (this.logger) {
+                    this.logger.debug('Proxy forwarding WebSocket upgrade', {
+                        target: `${target.protocol}//${target.host}${target.path}`,
+                        proxy: this.proxyConfig
+                    });
+                }
+            }
+            
+            // 获取连接池优化的代理
+            const isHttps = (this.proxyConfig && new URL(this.proxyConfig).protocol === 'https:') || (!this.proxyConfig && target.protocol === 'wss:');
+            options.agent = isHttps ? this.httpsAgent : this.httpAgent;
+            
             // 选择HTTP模块
-            const httpModule = target.protocol === 'wss:' ? https : http;
+            const httpModule = isHttps ? https : http;
             
             // 创建升级请求
             const upgradeRequest = httpModule.request(options);
             
             // 处理升级响应
             upgradeRequest.on('upgrade', (res, targetSocket, targetHead) => {
+                // 记录性能指标
+                if (this.metrics) {
+                    this.metrics.incrementCounter('websocket_upgrades_total', {
+                        status: res.statusCode,
+                        proxy_used: this.proxyConfig ? 'true' : 'false'
+                    });
+                }
+                
                 this._handleUpgradeResponse(context, res, targetSocket, targetHead, resolve, reject);
             });
             
@@ -172,11 +271,20 @@ class UpgradeEngine {
             // 设置超时
             upgradeRequest.setTimeout(this.timeout, () => {
                 upgradeRequest.destroy();
+                if (this.metrics) {
+                    this.metrics.incrementCounter('websocket_timeouts_total');
+                }
                 reject(new Error('Upgrade timeout'));
             });
             
             // 处理错误
             upgradeRequest.on('error', (error) => {
+                if (this.metrics) {
+                    this.metrics.incrementCounter('websocket_errors_total', {
+                        error_type: error.code || 'unknown',
+                        proxy_used: this.proxyConfig ? 'true' : 'false'
+                    });
+                }
                 reject(error);
             });
             
@@ -336,6 +444,162 @@ class UpgradeEngine {
     }
     
     /**
+     * 处理直接升级响应
+     */
+    async _handleDirectUpgradeResponse(context, result) {
+        const socket = context.socket;
+        const head = context.head;
+        
+        if (socket.destroyed) {
+            if (this.logger) {
+                this.logger.warn('Cannot send direct upgrade response, socket destroyed');
+            }
+            return;
+        }
+        
+        try {
+            // 设置响应状态和头部
+            const statusCode = result.statusCode || 101;
+            const statusText = result.statusText || 'Switching Protocols';
+            const headers = result.headers || {};
+            
+            // 如果是WebSocket升级成功响应，添加必要的头部
+            if (statusCode === 101) {
+                const wsKey = context.request.headers['sec-websocket-key'];
+                if (wsKey && !headers['sec-websocket-accept']) {
+                    headers['sec-websocket-accept'] = this._generateAcceptKey(wsKey);
+                }
+                
+                if (!headers['upgrade']) {
+                    headers['upgrade'] = 'websocket';
+                }
+                
+                if (!headers['connection']) {
+                    headers['connection'] = 'Upgrade';
+                }
+            }
+            
+            // 构建响应
+            let response = `HTTP/1.1 ${statusCode} ${statusText}\r\n`;
+            
+            // 添加头部
+            for (const [key, value] of Object.entries(headers)) {
+                response += `${key}: ${value}\r\n`;
+            }
+            
+            response += '\r\n';
+            
+            // 发送响应
+            socket.write(response);
+            
+            // 如果有响应体，发送响应体
+            if (result.body) {
+                if (typeof result.body === 'string') {
+                    socket.write(result.body);
+                } else if (Buffer.isBuffer(result.body)) {
+                    socket.write(result.body);
+                } else {
+                    socket.write(JSON.stringify(result.body));
+                }
+            }
+            
+            // 如果不是成功的升级响应，关闭连接
+            if (statusCode !== 101) {
+                socket.end();
+            } else {
+                // 跟踪WebSocket连接
+                this.activeConnections.add(socket);
+                
+                socket.on('close', () => {
+                    this._cleanupConnection(socket);
+                });
+                
+                socket.on('error', (error) => {
+                    if (this.logger) {
+                        this.logger.debug('WebSocket socket error', { error: error.message });
+                    }
+                    this._cleanupConnection(socket);
+                });
+            }
+            
+            if (this.logger) {
+                this.logger.debug('Direct upgrade response sent', {
+                    statusCode,
+                    headers: Object.keys(headers)
+                });
+            }
+            
+        } catch (error) {
+            if (this.logger) {
+                this.logger.error('Failed to send direct upgrade response', {
+                    error: error.message
+                });
+            }
+            socket.destroy();
+        }
+    }
+    
+    /**
+     * 应用升级修改
+     */
+    _applyUpgradeModifications(context, result) {
+        const request = context.request;
+        
+        // 修改请求头
+        if (result.modifiedHeaders) {
+            Object.assign(request.headers, result.modifiedHeaders);
+            
+            if (this.logger) {
+                this.logger.debug('Upgrade request headers modified', {
+                    modified: Object.keys(result.modifiedHeaders)
+                });
+            }
+        }
+        
+        // 修改目标URL
+        if (result.modifiedUrl) {
+            const target = this._parseTarget({ url: result.modifiedUrl });
+            if (target) {
+                context.target = target;
+                
+                if (this.logger) {
+                    this.logger.debug('Upgrade target URL modified', {
+                        original: context.request.url,
+                        modified: result.modifiedUrl
+                    });
+                }
+            }
+        }
+        
+        // 修改WebSocket协议
+        if (result.modifiedProtocol) {
+            request.headers['sec-websocket-protocol'] = result.modifiedProtocol;
+            
+            if (this.logger) {
+                this.logger.debug('WebSocket protocol modified', {
+                    protocol: result.modifiedProtocol
+                });
+            }
+        }
+        
+        // 修改WebSocket版本
+        if (result.modifiedVersion) {
+            request.headers['sec-websocket-version'] = result.modifiedVersion;
+            
+            if (this.logger) {
+                this.logger.debug('WebSocket version modified', {
+                    version: result.modifiedVersion
+                });
+            }
+        }
+        
+        // 存储其他修改
+        if (result.modifications) {
+            context.modifications = { ...context.modifications, ...result.modifications };
+        }
+    }
+    
+    /**
      * 处理错误
      */
     async _handleError(context, error) {
@@ -405,10 +669,44 @@ class UpgradeEngine {
     }
     
     /**
+     * 获取代理统计信息
+     */
+    getProxyStats() {
+        return {
+            proxyConfig: this.proxyConfig,
+            proxyAuth: this.proxyAuth ? '***' : null,
+            connectionPool: this.connectionPool ? this.connectionPool.getStats() : null,
+            timeout: this.timeout,
+            keepAlive: this.keepAlive,
+            activeConnections: this.activeConnections.size
+        };
+    }
+    
+    /**
      * 销毁引擎
      */
     destroy() {
-        this.closeAllConnections();
+        // 销毁连接池
+        if (this.connectionPool) {
+            this.connectionPool.destroy();
+        }
+        
+        // 关闭所有活跃连接
+        for (const connection of this.activeConnections) {
+            if (connection && !connection.destroyed) {
+                connection.destroy();
+            }
+        }
+        this.activeConnections.clear();
+        
+        // 销毁HTTP代理
+        if (this.httpAgent) {
+            this.httpAgent.destroy();
+        }
+        
+        if (this.httpsAgent) {
+            this.httpsAgent.destroy();
+        }
     }
 }
 

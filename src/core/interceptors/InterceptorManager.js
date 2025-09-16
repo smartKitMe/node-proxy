@@ -1,4 +1,5 @@
 const EventEmitter = require('events');
+const { InterceptorResponse, InterceptorContext } = require('../../types/InterceptorTypes');
 
 /**
  * 拦截器管理器
@@ -248,33 +249,59 @@ class InterceptorManager extends EventEmitter {
         
         const startTime = Date.now();
         
+        // 创建拦截器上下文
+        const interceptorContext = new InterceptorContext(context);
+        
         try {
             for (const interceptor of this.sortedInterceptors) {
-                if (context.stopped) {
+                if (interceptorContext.stopped) {
                     break;
                 }
                 
                 try {
                     // 检查是否应该拦截
-                    const shouldIntercept = await this._callShouldIntercept(interceptor, type, context);
+                    const shouldIntercept = await this._callShouldIntercept(interceptor, type, interceptorContext);
                     if (!shouldIntercept) {
                         continue;
                     }
                     
                     // 执行拦截
                     if (typeof interceptor[methodName] === 'function') {
-                        await this._executeInterceptor(interceptor, methodName, context);
+                        const result = await this._executeInterceptor(interceptor, methodName, interceptorContext);
+                        
+                        // 处理拦截器响应
+                        if (result && typeof result === 'object') {
+                            interceptorContext.setInterceptorResult(result);
+                            
+                            // 如果拦截器要求停止处理
+                            if (result.shouldStop()) {
+                                interceptorContext.stopped = true;
+                                break;
+                            }
+                            
+                            // 如果拦截器返回直接响应或修改后转发，标记为已拦截
+                            if (result.shouldDirectResponse() || result.shouldModifyAndForward()) {
+                                interceptorContext.markIntercepted();
+                            }
+                        }
+                        
                         this.stats.intercepted++;
                         
-                        if (this.logger && this.logger.isDebugEnabled()) {
+                        if (this.logger) {
                             this.logger.debug('Request intercepted', {
                                 name: interceptor.name,
-                                type
+                                type,
+                                result: result ? result.result : 'unknown'
                             });
                         }
                         
                         // 如果拦截器标记为独占，停止执行其他拦截器
                         if (interceptor.exclusive) {
+                            break;
+                        }
+                        
+                        // 如果拦截器返回了直接响应，停止执行其他拦截器
+                        if (result && result.shouldDirectResponse()) {
                             break;
                         }
                     }
@@ -296,6 +323,9 @@ class InterceptorManager extends EventEmitter {
                     }
                 }
             }
+            
+            // 将拦截器上下文的结果复制回原始上下文
+            this._copyInterceptorResults(interceptorContext, context);
             
         } finally {
             this.executing.delete(executionId);
@@ -377,6 +407,41 @@ class InterceptorManager extends EventEmitter {
                 // 优先级相同时按名称排序
                 return a.name.localeCompare(b.name);
             });
+    }
+    
+    /**
+     * 将拦截器上下文的结果复制回原始上下文
+     */
+    _copyInterceptorResults(interceptorContext, originalContext) {
+        // 复制拦截状态
+        if (interceptorContext.intercepted) {
+            originalContext.intercepted = true;
+        }
+        
+        // 复制停止状态
+        if (interceptorContext.stopped) {
+            originalContext.stopped = true;
+        }
+        
+        // 复制拦截器结果
+        if (interceptorContext.interceptorResult) {
+            originalContext.interceptorResult = interceptorContext.interceptorResult;
+        }
+        
+        // 复制修改的请求数据
+        if (interceptorContext.modifiedRequest) {
+            originalContext.modifiedRequest = interceptorContext.modifiedRequest;
+        }
+        
+        // 复制修改的响应数据
+        if (interceptorContext.modifiedResponse) {
+            originalContext.modifiedResponse = interceptorContext.modifiedResponse;
+        }
+        
+        // 复制其他可能的修改
+        if (interceptorContext.modifications) {
+            originalContext.modifications = { ...originalContext.modifications, ...interceptorContext.modifications };
+        }
     }
     
     /**

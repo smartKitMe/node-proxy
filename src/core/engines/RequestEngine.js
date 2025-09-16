@@ -3,6 +3,8 @@ const https = require('https');
 const url = require('url');
 const zlib = require('zlib');
 const { pipeline } = require('stream');
+const { InterceptorResult } = require('../../types/InterceptorTypes');
+const ConnectionPoolManager = require('../proxy/ConnectionPoolManager');
 
 /**
  * 请求处理引擎
@@ -22,20 +24,44 @@ class RequestEngine {
         this.keepAlive = options.keepAlive !== false;
         this.maxRedirects = options.maxRedirects || 5;
         
-        // HTTP代理
-        this.httpAgent = new http.Agent({
-            keepAlive: this.keepAlive,
+        // 连接池管理器
+        this.connectionPool = new ConnectionPoolManager({
+            config: this.config,
+            logger: this.logger,
+            metrics: this.metrics,
+            maxSockets: options.maxSockets || 256,
+            maxFreeSockets: options.maxFreeSockets || 256,
             timeout: this.timeout,
-            maxSockets: options.maxSockets || 256
+            keepAlive: this.keepAlive,
+            keepAliveMsecs: options.keepAliveMsecs || 1000,
+            proxy: options.proxy,
+            proxyAuth: options.proxyAuth
         });
         
-        // HTTPS代理
-        this.httpsAgent = new https.Agent({
-            keepAlive: this.keepAlive,
-            timeout: this.timeout,
-            maxSockets: options.maxSockets || 256,
-            rejectUnauthorized: false // 允许自签名证书
-        });
+        // 获取优化的HTTP/HTTPS代理
+        this.httpAgent = this.connectionPool.getHttpAgent();
+        this.httpsAgent = this.connectionPool.getHttpsAgent();
+        
+        // 代理转发配置
+        this.proxyConfig = null;
+        if (options.proxy) {
+            try {
+                const proxyUrl = new URL(options.proxy);
+                this.proxyConfig = {
+                    url: options.proxy,
+                    hostname: proxyUrl.hostname,
+                    port: proxyUrl.port || (proxyUrl.protocol === 'https:' ? 443 : 80),
+                    protocol: proxyUrl.protocol,
+                    auth: options.proxyAuth || proxyUrl.username ? 
+                        `${proxyUrl.username}:${proxyUrl.password}` : null,
+                    enabled: true
+                };
+            } catch (error) {
+                this.logger.warn('Invalid proxy URL, proxy disabled', { proxy: options.proxy, error: error.message });
+                this.proxyConfig = null;
+            }
+        }
+        this.proxyAuth = options.proxyAuth;
     }
     
     /**
@@ -65,13 +91,29 @@ class RequestEngine {
                 const shouldIntercept = await this.interceptorManager.shouldIntercept(context);
                 if (shouldIntercept) {
                     await this.interceptorManager.interceptRequest(context);
-                    context.markIntercepted();
+                    
+                    // 处理拦截器响应
+                    if (context.interceptorResult) {
+                        const result = context.interceptorResult;
+                        
+                        if (result.shouldDirectResponse()) {
+                            // 直接返回拦截器内容
+                            await this._handleDirectResponse(context, result);
+                            context.markIntercepted();
+                            if (context.stopped) return;
+                        } else if (result.shouldModifyAndForward()) {
+                            // 修改请求后转发
+                            this._applyRequestModifications(context, result);
+                            context.markIntercepted();
+                        }
+                    }
+                    
                     if (context.stopped) return;
                 }
             }
             
-            // 如果没有被拦截，则转发请求
-            if (!context.intercepted) {
+            // 转发请求（如果没有直接响应）
+            if (!context.intercepted || (context.interceptorResult && context.interceptorResult.shouldModifyAndForward())) {
                 await this._forwardRequest(context);
             }
             
@@ -97,8 +139,28 @@ class RequestEngine {
                     url: context.getUrl(),
                     statusCode: context.getStatusCode(),
                     duration,
-                    intercepted: context.intercepted
+                    intercepted: context.intercepted,
+                    proxyUsed: this.proxyConfig ? true : false,
+                    requestSize: context.requestSize || 0,
+                    responseSize: context.responseSize || 0
                 });
+            }
+            
+            // 记录性能指标
+            if (this.metrics) {
+                this.metrics.recordHistogram('request_duration_ms', duration, {
+                    method: context.getMethod(),
+                    intercepted: context.intercepted ? 'true' : 'false',
+                    proxy_used: this.proxyConfig ? 'true' : 'false'
+                });
+                
+                if (context.requestSize) {
+                    this.metrics.recordHistogram('request_size_bytes', context.requestSize);
+                }
+                
+                if (context.responseSize) {
+                    this.metrics.recordHistogram('response_size_bytes', context.responseSize);
+                }
             }
         }
     }
@@ -137,6 +199,9 @@ class RequestEngine {
         return new Promise((resolve, reject) => {
             const { request, response, parsedUrl } = context;
             
+            // 获取连接池优化的代理
+            const agent = this.connectionPool.getAgent(parsedUrl.protocol === 'https:', parsedUrl.hostname, parsedUrl.port);
+            
             // 准备请求选项
             const options = {
                 hostname: parsedUrl.hostname,
@@ -144,26 +209,66 @@ class RequestEngine {
                 path: parsedUrl.path,
                 method: request.method,
                 headers: this._prepareHeaders(request.headers, parsedUrl),
-                agent: parsedUrl.protocol === 'https:' ? this.httpsAgent : this.httpAgent,
+                agent: agent,
                 timeout: this.timeout
             };
             
+            // 如果配置了代理转发，修改请求选项
+            if (this.proxyConfig && this.proxyConfig.enabled) {
+                const targetUrl = `${parsedUrl.protocol}//${parsedUrl.host}${parsedUrl.path}`;
+                
+                options.hostname = this.proxyConfig.hostname;
+                options.port = this.proxyConfig.port;
+                options.path = targetUrl; // 使用完整URL作为路径
+                
+                // 添加代理认证
+                if (this.proxyConfig.auth) {
+                    options.headers['Proxy-Authorization'] = `Basic ${Buffer.from(this.proxyConfig.auth).toString('base64')}`;
+                }
+                
+                // 添加代理相关头部
+                options.headers['Host'] = parsedUrl.host;
+                options.headers['Proxy-Connection'] = 'keep-alive';
+                
+                // 记录代理转发信息
+                if (this.logger) {
+                    this.logger.debug(`代理转发请求: ${request.method} ${targetUrl} -> ${this.proxyConfig.url}`);
+                }
+            }
+            
             // 选择HTTP模块
-            const httpModule = parsedUrl.protocol === 'https:' ? https : http;
+            const httpModule = (this.proxyConfig && this.proxyConfig.protocol === 'https:') || (!this.proxyConfig && parsedUrl.protocol === 'https:') ? https : http;
             
             // 创建代理请求
             const proxyRequest = httpModule.request(options, (proxyResponse) => {
+                // 记录性能指标
+                if (this.metrics) {
+                    this.metrics.incrementCounter('proxy_requests_total', {
+                        method: request.method,
+                        status: proxyResponse.statusCode,
+                        proxy_used: this.proxyConfig ? 'true' : 'false'
+                    });
+                }
+                
                 this._handleProxyResponse(context, proxyResponse, resolve, reject);
             });
             
             // 设置请求超时
             proxyRequest.setTimeout(this.timeout, () => {
                 proxyRequest.destroy();
+                if (this.metrics) {
+                    this.metrics.incrementCounter('proxy_timeouts_total');
+                }
                 reject(new Error('Request timeout'));
             });
             
             // 处理请求错误
             proxyRequest.on('error', (error) => {
+                if (this.metrics) {
+                    this.metrics.incrementCounter('proxy_errors_total', {
+                        error_type: error.code || 'unknown'
+                    });
+                }
                 reject(error);
             });
             
@@ -171,20 +276,30 @@ class RequestEngine {
             if (this._hasRequestBody(request)) {
                 let requestSize = 0;
                 
-                request.on('data', (chunk) => {
-                    requestSize += chunk.length;
-                    proxyRequest.write(chunk);
-                });
-                
-                request.on('end', () => {
-                    context.requestSize = requestSize;
-                    proxyRequest.end();
-                });
-                
-                request.on('error', (error) => {
-                    proxyRequest.destroy();
-                    reject(error);
-                });
+                // 如果有修改的请求体，使用修改后的内容
+                if (context.modifiedRequestBody !== undefined) {
+                    const bodyData = typeof context.modifiedRequestBody === 'string' 
+                        ? Buffer.from(context.modifiedRequestBody) 
+                        : context.modifiedRequestBody;
+                    
+                    context.requestSize = bodyData.length;
+                    proxyRequest.end(bodyData);
+                } else {
+                    request.on('data', (chunk) => {
+                        requestSize += chunk.length;
+                        proxyRequest.write(chunk);
+                    });
+                    
+                    request.on('end', () => {
+                        context.requestSize = requestSize;
+                        proxyRequest.end();
+                    });
+                    
+                    request.on('error', (error) => {
+                        proxyRequest.destroy();
+                        reject(error);
+                    });
+                }
             } else {
                 proxyRequest.end();
             }
@@ -284,9 +399,18 @@ class RequestEngine {
     _prepareHeaders(headers, parsedUrl) {
         const newHeaders = { ...headers };
         
-        // 移除代理相关头部
-        delete newHeaders['proxy-connection'];
-        delete newHeaders['proxy-authorization'];
+        // 移除hop-by-hop头部
+        delete newHeaders['connection'];
+        delete newHeaders['upgrade'];
+        delete newHeaders['te'];
+        delete newHeaders['trailers'];
+        delete newHeaders['proxy-authenticate'];
+        
+        // 如果没有配置代理转发，移除代理相关头部
+        if (!this.proxyConfig) {
+            delete newHeaders['proxy-connection'];
+            delete newHeaders['proxy-authorization'];
+        }
         
         // 更新Host头
         if (parsedUrl.hostname) {
@@ -297,6 +421,11 @@ class RequestEngine {
         
         // 添加代理标识
         newHeaders['x-forwarded-by'] = 'node-mitmproxy';
+        
+        // 添加X-Forwarded-For头
+        if (!newHeaders['x-forwarded-for']) {
+            newHeaders['x-forwarded-for'] = '127.0.0.1';
+        }
         
         return newHeaders;
     }
@@ -329,6 +458,115 @@ class RequestEngine {
     _shouldDecompressResponse(proxyResponse) {
         const encoding = proxyResponse.headers['content-encoding'];
         return encoding && (encoding === 'gzip' || encoding === 'deflate' || encoding === 'br');
+    }
+    
+    /**
+     * 处理直接响应
+     */
+    async _handleDirectResponse(context, result) {
+        const response = context.response;
+        
+        if (response.headersSent) {
+            if (this.logger) {
+                this.logger.warn('Cannot send direct response, headers already sent');
+            }
+            return;
+        }
+        
+        try {
+            // 设置响应头
+            const headers = result.headers || {};
+            const statusCode = result.statusCode || 200;
+            
+            // 添加默认头部
+            if (!headers['Content-Type']) {
+                headers['Content-Type'] = 'text/plain';
+            }
+            
+            response.writeHead(statusCode, headers);
+            
+            // 发送响应体
+            if (result.body) {
+                if (typeof result.body === 'string') {
+                    response.end(result.body);
+                } else if (Buffer.isBuffer(result.body)) {
+                    response.end(result.body);
+                } else {
+                    response.end(JSON.stringify(result.body));
+                }
+            } else {
+                response.end();
+            }
+            
+            if (this.logger) {
+                this.logger.debug('Direct response sent', {
+                    statusCode,
+                    headers: Object.keys(headers)
+                });
+            }
+            
+        } catch (error) {
+            if (this.logger) {
+                this.logger.error('Failed to send direct response', {
+                    error: error.message
+                });
+            }
+            throw error;
+        }
+    }
+    
+    /**
+     * 应用请求修改
+     */
+    _applyRequestModifications(context, result) {
+        const request = context.request;
+        
+        // 修改请求头
+        if (result.modifiedHeaders) {
+            Object.assign(request.headers, result.modifiedHeaders);
+            
+            if (this.logger) {
+                this.logger.debug('Request headers modified', {
+                    modified: Object.keys(result.modifiedHeaders)
+                });
+            }
+        }
+        
+        // 修改请求URL
+        if (result.modifiedUrl) {
+            const parsedUrl = this._parseRequestUrl({ url: result.modifiedUrl });
+            if (parsedUrl) {
+                context.parsedUrl = parsedUrl;
+                context.ssl = parsedUrl.protocol === 'https:';
+                
+                if (this.logger) {
+                    this.logger.debug('Request URL modified', {
+                        original: context.getUrl(),
+                        modified: result.modifiedUrl
+                    });
+                }
+            }
+        }
+        
+        // 修改请求方法
+        if (result.modifiedMethod) {
+            request.method = result.modifiedMethod;
+            
+            if (this.logger) {
+                this.logger.debug('Request method modified', {
+                    method: result.modifiedMethod
+                });
+            }
+        }
+        
+        // 存储修改的请求体（如果有）
+        if (result.modifiedBody !== undefined) {
+            context.modifiedRequestBody = result.modifiedBody;
+            
+            if (this.logger) {
+                this.logger.debug('Request body modified');
+            }
+        }
     }
     
     /**
@@ -369,9 +607,26 @@ class RequestEngine {
     }
     
     /**
+     * 获取代理统计信息
+     */
+    getProxyStats() {
+        return {
+            proxyConfig: this.proxyConfig,
+            proxyAuth: this.proxyAuth ? '***' : null,
+            connectionPool: this.connectionPool ? this.connectionPool.getStats() : null,
+            timeout: this.timeout,
+            keepAlive: this.keepAlive,
+            maxRedirects: this.maxRedirects
+        };
+    }
+    
+    /**
      * 销毁引擎
      */
     destroy() {
+        if (this.connectionPool) {
+            this.connectionPool.destroy();
+        }
         if (this.httpAgent) {
             this.httpAgent.destroy();
         }

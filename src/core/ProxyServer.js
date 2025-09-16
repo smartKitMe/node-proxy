@@ -529,7 +529,7 @@ class ProxyServer extends EventEmitter {
         return {
             isRunning: this.isRunning,
             activeConnections: this.activeConnections.size,
-            stats: { ...this.stats },
+            stats: Object.assign({}, this.stats),
             uptime: this.stats.startTime ? Date.now() - this.stats.startTime : 0,
             pools: {
                 requestContext: this.requestContextPool.getStats(),

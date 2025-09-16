@@ -311,7 +311,7 @@ class MigrationTool {
      * 获取迁移统计
      */
     getStats() {
-        return { ...this.stats };
+        return Object.assign({}, this.stats);
     }
     
     /**
