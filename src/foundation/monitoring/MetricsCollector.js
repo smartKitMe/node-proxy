@@ -358,6 +358,24 @@ class MetricsCollector extends EventEmitter {
     }
     
     /**
+     * 增加计数器
+     */
+    incrementCounter(name, labels = {}) {
+        if (!this.enabled) return;
+        
+        // 简单的计数器实现，可以根据需要扩展
+        if (!this.metrics.counters) {
+            this.metrics.counters = {};
+        }
+        
+        if (!this.metrics.counters[name]) {
+            this.metrics.counters[name] = 0;
+        }
+        
+        this.metrics.counters[name]++;
+    }
+
+    /**
      * 获取当前指标快照
      */
     getSnapshot() {

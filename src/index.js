@@ -9,6 +9,7 @@ const InterceptorManager = require('./core/interceptors/InterceptorManager');
 const EngineManager = require('./core/engines/EngineManager');
 // 导出类型定义
 const { RequestContext, ConnectContext, UpgradeContext } = require('./types/ProxyTypes');
+const { InterceptorResponse, InterceptorContext, InterceptorResult } = require('./types/InterceptorTypes');
 
 // 导出接口定义
 const IMiddleware = require('./interfaces/IMiddleware');
@@ -237,10 +238,12 @@ class NodeMITMProxy extends EventEmitter {
      */
     getVersion() {
         try {
-            const packageJson = require('../package.json');
-            return packageJson.version;
+            const path = require('path');
+            const packagePath = path.join(__dirname, '../package.json');
+            const packageJson = require(packagePath);
+            return packageJson.version || '1.0.0';
         } catch (error) {
-            return '2.0.0';
+            return '1.0.0';
         }
     }
     
@@ -329,10 +332,13 @@ module.exports.InterceptorManager = InterceptorManager;
 module.exports.EngineManager = EngineManager;
 module.exports.TlsManager = require('./core/tls/TlsManager');
 
-// 导出类型定义
+// 导出类型
 module.exports.RequestContext = RequestContext;
 module.exports.ConnectContext = ConnectContext;
 module.exports.UpgradeContext = UpgradeContext;
+module.exports.InterceptorResponse = InterceptorResponse;
+module.exports.InterceptorContext = InterceptorContext;
+module.exports.InterceptorResult = InterceptorResult;
 
 // 导出接口定义
 module.exports.IMiddleware = IMiddleware;

@@ -88,7 +88,7 @@ class RequestEngine {
             
             // 检查拦截器
             if (this.interceptorManager) {
-                const shouldIntercept = await this.interceptorManager.shouldIntercept(context);
+                const shouldIntercept = await this.interceptorManager.shouldInterceptRequest(context);
                 if (shouldIntercept) {
                     await this.interceptorManager.interceptRequest(context);
                     
@@ -98,7 +98,7 @@ class RequestEngine {
                         
                         if (result.shouldDirectResponse()) {
                             // 直接返回拦截器内容
-                            await this._handleDirectResponse(context, result);
+                            await this._handleDirectResponse(context, result.data);
                             context.markIntercepted();
                             if (context.stopped) return;
                         } else if (result.shouldModifyAndForward()) {
@@ -148,19 +148,7 @@ class RequestEngine {
             
             // 记录性能指标
             if (this.metrics) {
-                this.metrics.recordHistogram('request_duration_ms', duration, {
-                    method: context.getMethod(),
-                    intercepted: context.intercepted ? 'true' : 'false',
-                    proxy_used: this.proxyConfig ? 'true' : 'false'
-                });
-                
-                if (context.requestSize) {
-                    this.metrics.recordHistogram('request_size_bytes', context.requestSize);
-                }
-                
-                if (context.responseSize) {
-                    this.metrics.recordHistogram('response_size_bytes', context.responseSize);
-                }
+                this.metrics.recordRequest(context);
             }
         }
     }
@@ -521,20 +509,26 @@ class RequestEngine {
     _applyRequestModifications(context, result) {
         const request = context.request;
         
+        // 使用累积的修改结果
+        const modifiedRequest = context.modifiedRequest || {};
+        
         // 修改请求头
-        if (result.modifiedHeaders) {
-            Object.assign(request.headers, result.modifiedHeaders);
+        if (modifiedRequest.headers) {
+            Object.assign(request.headers, modifiedRequest.headers);
             
             if (this.logger) {
                 this.logger.debug('Request headers modified', {
-                    modified: Object.keys(result.modifiedHeaders)
+                    modified: Object.keys(modifiedRequest.headers)
                 });
             }
         }
         
         // 修改请求URL
-        if (result.modifiedUrl) {
-            const parsedUrl = this._parseRequestUrl({ url: result.modifiedUrl });
+        if (modifiedRequest.url) {
+            // 更新request.url
+            request.url = modifiedRequest.url;
+            // 重新解析URL
+            const parsedUrl = this._parseRequestUrl(request);
             if (parsedUrl) {
                 context.parsedUrl = parsedUrl;
                 context.ssl = parsedUrl.protocol === 'https:';
@@ -542,26 +536,26 @@ class RequestEngine {
                 if (this.logger) {
                     this.logger.debug('Request URL modified', {
                         original: context.getUrl(),
-                        modified: result.modifiedUrl
+                        modified: modifiedRequest.url
                     });
                 }
             }
         }
         
         // 修改请求方法
-        if (result.modifiedMethod) {
-            request.method = result.modifiedMethod;
+        if (modifiedRequest.method) {
+            request.method = modifiedRequest.method;
             
             if (this.logger) {
                 this.logger.debug('Request method modified', {
-                    method: result.modifiedMethod
+                    method: modifiedRequest.method
                 });
             }
         }
         
         // 存储修改的请求体（如果有）
-        if (result.modifiedBody !== undefined) {
-            context.modifiedRequestBody = result.modifiedBody;
+        if (modifiedRequest.body !== undefined) {
+            context.modifiedRequestBody = modifiedRequest.body;
             
             if (this.logger) {
                 this.logger.debug('Request body modified');

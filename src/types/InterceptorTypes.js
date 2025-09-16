@@ -116,7 +116,35 @@ class InterceptorContext {
         if (result.shouldDirectResponse()) {
             this.directResponse = result.data;
         } else if (result.shouldModifyAndForward()) {
-            this.modifiedRequest = result.data;
+            // 累积修改而不是覆盖
+            if (!this.modifiedRequest) {
+                this.modifiedRequest = {};
+            }
+            
+            const newData = result.data;
+            
+            // 累积请求头修改
+            if (newData.headers) {
+                this.modifiedRequest.headers = {
+                    ...this.modifiedRequest.headers,
+                    ...newData.headers
+                };
+            }
+            
+            // 累积其他修改（后面的覆盖前面的）
+            if (newData.url !== undefined) {
+                this.modifiedRequest.url = newData.url;
+                // 同时更新request.url，让后续拦截器能看到修改后的URL
+                this.request.url = newData.url;
+            }
+            if (newData.method !== undefined) {
+                this.modifiedRequest.method = newData.method;
+                // 同时更新request.method
+                this.request.method = newData.method;
+            }
+            if (newData.body !== undefined) {
+                this.modifiedRequest.body = newData.body;
+            }
         }
     }
     
@@ -169,6 +197,13 @@ class InterceptorContext {
      */
     hasDirectResponse() {
         return this.directResponse !== null;
+    }
+    
+    /**
+     * 标记请求已被拦截
+     */
+    markIntercepted() {
+        this.intercepted = true;
     }
 }
 

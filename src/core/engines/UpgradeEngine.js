@@ -100,23 +100,49 @@ class UpgradeEngine {
                 if (shouldIntercept) {
                     await this.interceptorManager.interceptUpgrade(context);
                     
+                    if (this.logger) {
+                        this.logger.debug('After interceptor execution', {
+                            hasInterceptorResult: !!context.interceptorResult,
+                            interceptorResultType: typeof context.interceptorResult,
+                            contextKeys: Object.keys(context)
+                        });
+                    }
+                    
                     // 处理拦截器响应
                     if (context.interceptorResult) {
                         const result = context.interceptorResult;
                         
-                        if (result.shouldDirectResponse()) {
-                            // 直接返回拦截器内容
-                            await this._handleDirectUpgradeResponse(context, result);
-                            context.markIntercepted();
-                            if (context.stopped) return;
-                        } else if (result.shouldModifyAndForward()) {
-                            // 修改升级请求后转发
-                            this._applyUpgradeModifications(context, result);
-                            context.markIntercepted();
+                        if (this.logger) {
+                            this.logger.debug('Interceptor result details', {
+                                hasResult: !!result,
+                                resultType: typeof result,
+                                hasShouldDirectResponse: result && typeof result.shouldDirectResponse === 'function',
+                                hasShouldModifyAndForward: result && typeof result.shouldModifyAndForward === 'function',
+                                shouldDirectResponse: result && result.shouldDirectResponse ? result.shouldDirectResponse() : false,
+                                shouldModifyAndForward: result && result.shouldModifyAndForward ? result.shouldModifyAndForward() : false,
+                                resultData: result ? result.result : null
+                            });
+                        }
+                        
+                        if (result && typeof result.shouldDirectResponse === 'function') {
+                            if (result.shouldDirectResponse()) {
+                                // 直接返回拦截器内容
+                                await this._handleDirectUpgradeResponse(context, result);
+                                context.intercepted = true;
+                                if (context.stopped) return;
+                            } else if (result.shouldModifyAndForward()) {
+                                // 修改升级请求后转发
+                                this._applyUpgradeModifications(context, result);
+                                context.intercepted = true;
+                                context.shouldForward = true;
+                            }
+                        } else {
+                            // 兼容旧的拦截方式
+                            context.intercepted = true;
                         }
                     } else {
                         // 兼容旧的拦截方式
-                        context.markIntercepted();
+                        context.intercepted = true;
                     }
                     
                     if (context.stopped) return;
@@ -124,8 +150,20 @@ class UpgradeEngine {
             }
             
             // 转发升级请求（如果没有直接响应）
-            if (!context.intercepted || (context.interceptorResult && context.interceptorResult.shouldModifyAndForward())) {
+            if (this.logger) {
+                this.logger.debug('Checking forward conditions', {
+                    intercepted: context.intercepted,
+                    shouldForward: context.shouldForward,
+                    willForward: !context.intercepted || context.shouldForward
+                });
+            }
+            
+            if (!context.intercepted || context.shouldForward) {
                 await this._forwardUpgrade(context);
+            } else {
+                if (this.logger) {
+                    this.logger.debug('Skipping forward - request was intercepted without forward flag');
+                }
             }
             
             // 执行中间件（升级后）
@@ -172,17 +210,34 @@ class UpgradeEngine {
             let targetUrl;
             
             if (request.url.startsWith('ws://') || request.url.startsWith('wss://')) {
-                // 绝对URL
+                // 绝对WebSocket URL
                 targetUrl = request.url;
+            } else if (request.url.startsWith('http://') || request.url.startsWith('https://')) {
+                // 绝对HTTP URL，转换为WebSocket URL
+                targetUrl = request.url.replace(/^http/, 'ws');
             } else {
                 // 相对URL，从Host头构建
                 const host = request.headers.host;
                 if (!host) {
+                    if (this.logger) {
+                        this.logger.debug('No host header found in WebSocket upgrade request', {
+                            url: request.url,
+                            headers: Object.keys(request.headers)
+                        });
+                    }
                     return null;
                 }
                 
                 const protocol = request.connection.encrypted ? 'wss:' : 'ws:';
                 targetUrl = `${protocol}//${host}${request.url}`;
+            }
+            
+            if (this.logger) {
+                this.logger.debug('Parsing WebSocket target URL', {
+                    originalUrl: request.url,
+                    targetUrl: targetUrl,
+                    host: request.headers.host
+                });
             }
             
             const url = new URL(targetUrl);
@@ -194,6 +249,13 @@ class UpgradeEngine {
                 host: url.host
             };
         } catch (error) {
+            if (this.logger) {
+                this.logger.error('Failed to parse WebSocket target URL', {
+                    url: request.url,
+                    host: request.headers.host,
+                    error: error.message
+                });
+            }
             return null;
         }
     }
@@ -206,14 +268,23 @@ class UpgradeEngine {
             const { request, socket, head, target } = context;
             
             // 准备升级请求选项
+            const preparedHeaders = this._prepareUpgradeHeaders(request.headers);
             const options = {
                 hostname: target.hostname,
                 port: target.port,
                 path: target.path,
                 method: 'GET',
-                headers: this._prepareUpgradeHeaders(request.headers),
+                headers: preparedHeaders,
                 timeout: this.timeout
             };
+            
+            // 调试日志：记录转发的请求头
+            if (this.logger) {
+                this.logger.debug('Forwarding WebSocket upgrade with headers', {
+                    target: `${target.protocol}//${target.host}${target.path}`,
+                    headers: preparedHeaders
+                });
+            }
             
             // 如果配置了代理转发，修改请求选项
             if (this.proxyConfig) {
@@ -314,13 +385,14 @@ class UpgradeEngine {
             
             socket.write(responseLines.join('\r\n'));
             
-            // 如果有head数据，先写入
+            // 如果有head数据，写入到客户端
             if (head && head.length > 0) {
                 socket.write(head);
             }
             
+            // 如果有targetHead数据，写入到客户端（这是来自目标服务器的数据）
             if (targetHead && targetHead.length > 0) {
-                targetSocket.write(targetHead);
+                socket.write(targetHead);
             }
             
             // 建立双向数据转发
@@ -338,28 +410,23 @@ class UpgradeEngine {
      */
     _setupWebSocketPipes(clientSocket, targetSocket) {
         // 客户端到目标服务器
-        pipeline(
-            clientSocket,
-            targetSocket,
-            (error) => {
-                if (error && this.logger) {
-                    this.logger.debug('Client to target WebSocket pipe error', { error: error.message });
-                }
-                this._cleanupWebSocketConnection(clientSocket, targetSocket);
-            }
-        );
+        clientSocket.pipe(targetSocket);
         
         // 目标服务器到客户端
-        pipeline(
-            targetSocket,
-            clientSocket,
-            (error) => {
-                if (error && this.logger) {
-                    this.logger.debug('Target to client WebSocket pipe error', { error: error.message });
-                }
-                this._cleanupWebSocketConnection(clientSocket, targetSocket);
+        targetSocket.pipe(clientSocket);
+        
+        // 处理管道错误
+        clientSocket.on('pipe', () => {
+            if (this.logger) {
+                this.logger.debug('Client to target WebSocket pipe established');
             }
-        );
+        });
+        
+        targetSocket.on('pipe', () => {
+            if (this.logger) {
+                this.logger.debug('Target to client WebSocket pipe established');
+            }
+        });
         
         // 设置超时
         clientSocket.setTimeout(this.timeout);
@@ -544,58 +611,59 @@ class UpgradeEngine {
      */
     _applyUpgradeModifications(context, result) {
         const request = context.request;
+        const data = result.data || {};
         
         // 修改请求头
-        if (result.modifiedHeaders) {
-            Object.assign(request.headers, result.modifiedHeaders);
+        if (data.modifiedHeaders) {
+            Object.assign(request.headers, data.modifiedHeaders);
             
             if (this.logger) {
                 this.logger.debug('Upgrade request headers modified', {
-                    modified: Object.keys(result.modifiedHeaders)
+                    modified: Object.keys(data.modifiedHeaders)
                 });
             }
         }
         
         // 修改目标URL
-        if (result.modifiedUrl) {
-            const target = this._parseTarget({ url: result.modifiedUrl });
+        if (data.modifiedUrl) {
+            const target = this._parseTarget({ url: data.modifiedUrl });
             if (target) {
                 context.target = target;
                 
                 if (this.logger) {
                     this.logger.debug('Upgrade target URL modified', {
                         original: context.request.url,
-                        modified: result.modifiedUrl
+                        modified: data.modifiedUrl
                     });
                 }
             }
         }
         
         // 修改WebSocket协议
-        if (result.modifiedProtocol) {
-            request.headers['sec-websocket-protocol'] = result.modifiedProtocol;
+        if (data.modifiedProtocol) {
+            request.headers['sec-websocket-protocol'] = data.modifiedProtocol;
             
             if (this.logger) {
                 this.logger.debug('WebSocket protocol modified', {
-                    protocol: result.modifiedProtocol
+                    protocol: data.modifiedProtocol
                 });
             }
         }
         
         // 修改WebSocket版本
-        if (result.modifiedVersion) {
-            request.headers['sec-websocket-version'] = result.modifiedVersion;
+        if (data.modifiedVersion) {
+            request.headers['sec-websocket-version'] = data.modifiedVersion;
             
             if (this.logger) {
                 this.logger.debug('WebSocket version modified', {
-                    version: result.modifiedVersion
+                    version: data.modifiedVersion
                 });
             }
         }
         
         // 存储其他修改
-        if (result.modifications) {
-            context.modifications = { ...context.modifications, ...result.modifications };
+        if (data.modifications) {
+            context.modifications = { ...context.modifications, ...data.modifications };
         }
     }
     

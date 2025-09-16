@@ -134,15 +134,15 @@ class ProxyServer extends EventEmitter {
     /**
      * 启动代理服务器
      */
-    async start() {
+    async start(port, host) {
         if (this.isRunning) {
             throw new Error('Proxy server is already running');
         }
         
         try {
-            // 获取配置
-            const port = this.config ? this.config.get('proxy.port', 6789) : 6789;
-            const host = this.config ? this.config.get('proxy.host', '0.0.0.0') : '0.0.0.0';
+            // 获取配置，优先使用传入的参数
+            const finalPort = port || (this.config ? this.config.get('proxy.port', 6789) : 6789);
+            const finalHost = host || (this.config ? this.config.get('proxy.host', '0.0.0.0') : '0.0.0.0');
             
             // 创建HTTP服务器
             this.server = http.createServer();
@@ -152,7 +152,7 @@ class ProxyServer extends EventEmitter {
             
             // 启动服务器
             await new Promise((resolve, reject) => {
-                this.server.listen(port, host, (error) => {
+                this.server.listen(finalPort, finalHost, (error) => {
                     if (error) {
                         reject(error);
                     } else {
@@ -165,10 +165,10 @@ class ProxyServer extends EventEmitter {
             this.stats.startTime = Date.now();
             
             if (this.logger) {
-                this.logger.info('Proxy server started', { port, host });
+                this.logger.info('Proxy server started', { port: finalPort, host: finalHost });
             }
             
-            this.emit('started', { port, host });
+            this.emit('started', { port: finalPort, host: finalHost });
             
         } catch (error) {
             if (this.logger) {
@@ -280,8 +280,7 @@ class ProxyServer extends EventEmitter {
         this.stats.requests++;
         
         try {
-            if (this.requestEngine) {
-                // await this.requestEngine.handle(context);
+            if (this.engineManager) {
                 await this.engineManager.handleRequest(context);
             } else {
                 // 默认处理逻辑
@@ -350,8 +349,7 @@ class ProxyServer extends EventEmitter {
         context.metrics = this.metrics;
         
         try {
-            if (this.upgradeEngine) {
-                // await this.upgradeEngine.handle(context);
+            if (this.engineManager) {
                 await this.engineManager.handleUpgrade(context);
             } else {
                 // 默认拒绝升级请求

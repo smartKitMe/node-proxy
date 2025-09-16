@@ -112,6 +112,9 @@ class ConfigManager extends IConfigProvider {
      * 获取配置值
      */
     get(path, defaultValue = undefined) {
+        if (!path || typeof path !== 'string') {
+            return defaultValue;
+        }
         const keys = path.split('.');
         let current = this.config;
         
@@ -130,6 +133,9 @@ class ConfigManager extends IConfigProvider {
      * 设置配置值
      */
     set(path, value) {
+        if (!path || typeof path !== 'string') {
+            return;
+        }
         const keys = path.split('.');
         let current = this.config;
         
@@ -153,6 +159,9 @@ class ConfigManager extends IConfigProvider {
      * 检查配置是否存在
      */
     has(path) {
+        if (!path || typeof path !== 'string') {
+            return false;
+        }
         const keys = path.split('.');
         let current = this.config;
         

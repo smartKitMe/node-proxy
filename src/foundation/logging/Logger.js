@@ -254,6 +254,13 @@ class Logger extends ILogger {
     }
     
     /**
+     * 检查是否启用了调试级别日志
+     */
+    isDebugEnabled() {
+        return this.level >= LogLevel.DEBUG;
+    }
+    
+    /**
      * 创建子日志器
      */
     child(meta = {}) {

@@ -270,8 +270,26 @@ class InterceptorManager extends EventEmitter {
                         const result = await this._executeInterceptor(interceptor, methodName, interceptorContext);
                         
                         // 处理拦截器响应
+                        if (this.logger) {
+                            this.logger.debug('Interceptor execution result', {
+                                name: interceptor.name,
+                                hasResult: !!result,
+                                resultType: typeof result,
+                                resultData: result ? result.result : null,
+                                shouldDirectResponse: result && result.shouldDirectResponse ? result.shouldDirectResponse() : false,
+                                shouldModifyAndForward: result && result.shouldModifyAndForward ? result.shouldModifyAndForward() : false
+                            });
+                        }
+                        
                         if (result && typeof result === 'object') {
                             interceptorContext.setInterceptorResult(result);
+                            
+                            if (this.logger) {
+                                this.logger.debug('Interceptor result set', {
+                                    name: interceptor.name,
+                                    hasInterceptorResult: !!interceptorContext.interceptorResult
+                                });
+                            }
                             
                             // 如果拦截器要求停止处理
                             if (result.shouldStop()) {
@@ -334,7 +352,7 @@ class InterceptorManager extends EventEmitter {
             this.stats.totalTime += duration;
             
             if (this.metrics) {
-                this.metrics.recordInterceptorExecution(type, duration);
+                this.metrics.recordInterceptor(type, duration);
             }
         }
     }
@@ -362,7 +380,6 @@ class InterceptorManager extends EventEmitter {
      */
     async _executeInterceptor(interceptor, methodName, context) {
         const startTime = Date.now();
-        
         try {
             // 创建超时Promise
             const timeoutPromise = new Promise((_, reject) => {
@@ -375,7 +392,7 @@ class InterceptorManager extends EventEmitter {
             const executionPromise = interceptor[methodName](context);
             
             // 等待执行完成或超时
-            await Promise.race([executionPromise, timeoutPromise]);
+            return await Promise.race([executionPromise, timeoutPromise]);
             
         } finally {
             const duration = Date.now() - startTime;
@@ -389,7 +406,7 @@ class InterceptorManager extends EventEmitter {
             }
             
             if (this.metrics) {
-                this.metrics.recordInterceptorTime(interceptor.name, methodName, duration);
+                this.metrics.recordInterceptor(interceptor.name, duration);
             }
         }
     }
@@ -431,6 +448,22 @@ class InterceptorManager extends EventEmitter {
         // 复制修改的请求数据
         if (interceptorContext.modifiedRequest) {
             originalContext.modifiedRequest = interceptorContext.modifiedRequest;
+        }
+        
+        // 同步request对象的修改（URL和方法）
+        if (interceptorContext.request && originalContext.request) {
+            if (interceptorContext.request.url !== originalContext.request.url) {
+                originalContext.request.url = interceptorContext.request.url;
+            }
+            if (interceptorContext.request.method !== originalContext.request.method) {
+                originalContext.request.method = interceptorContext.request.method;
+            }
+        }
+        
+        // 同步parsedUrl的修改
+        if (interceptorContext.parsedUrl) {
+            originalContext.parsedUrl = interceptorContext.parsedUrl;
+            originalContext.ssl = interceptorContext.ssl;
         }
         
         // 复制修改的响应数据

@@ -144,6 +144,9 @@ class ConnectEngine {
      */
     _parseTarget(url) {
         try {
+            if (!url || typeof url !== 'string') {
+                return null;
+            }
             const [hostname, port] = url.split(':');
             return {
                 hostname: hostname.trim(),

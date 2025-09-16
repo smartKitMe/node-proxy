@@ -276,7 +276,7 @@ class MiddlewareManager extends EventEmitter {
             this.stats.totalTime += duration;
             
             if (this.metrics) {
-                this.metrics.recordMiddlewareExecution(phase, duration);
+                this.metrics.recordMiddleware(phase, duration);
             }
         }
     }
@@ -313,7 +313,7 @@ class MiddlewareManager extends EventEmitter {
             }
             
             if (this.metrics) {
-                this.metrics.recordMiddlewareTime(middleware.name, phase, duration);
+                this.metrics.recordMiddleware(middleware.name, duration);
             }
         }
     }
