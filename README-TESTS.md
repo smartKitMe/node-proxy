@@ -17,9 +17,24 @@ test/
 │   └── certificate-management.test.js # 证书管理测试
 ├── integration/                       # 集成测试
 │   └── integration.test.js           # 端到端集成测试
-└── performance/                       # 性能测试
-    └── performance-monitoring.test.js # 性能监控测试
+├── performance/                       # 性能测试
+│   └── performance-monitoring.test.js # 性能监控测试
+└── HTTPS测试用例                      # HTTPS测试用例
+    ├── https-test-case-1-minimal-config.js     # 最小配置启动HTTPS代理
+    ├── https-test-case-2-direct-response.js    # Direct Response模式测试
+    ├── https-test-case-3-modify-and-forward.js # Modify And Forward模式测试
+    ├── https-test-case-4-socks5-proxy.js       # SOCKS5代理转发测试
+    └── run-all-https-tests.js                  # 运行所有HTTPS测试
 ```
+
+### 测试证书目录
+HTTPS测试需要使用测试证书，位于 `test/certs/` 目录下:
+- `ca-cert.pem` - CA证书
+- `ca-key.pem` - CA私钥
+- `server-cert.pem` - 服务器证书
+- `server-key.pem` - 服务器私钥
+
+如果证书不存在，测试将自动生成临时证书用于测试。
 
 ## 🚀 快速开始
 
@@ -27,6 +42,15 @@ test/
 
 ```bash
 npm install
+```
+
+### 生成测试证书
+
+HTTPS测试需要使用测试证书，可以使用以下命令生成：
+
+```bash
+# 生成测试证书
+node test/generate-test-certs.js
 ```
 
 ### 运行所有测试
@@ -50,6 +74,11 @@ node test/test-runner.js integration
 
 # 只运行性能测试
 node test/test-runner.js performance
+
+# 运行所有HTTPS测试
+npm run test:https:all
+# 或
+node test/run-all-https-tests.js
 ```
 
 ### 运行特定的测试文件
@@ -63,6 +92,15 @@ node test/test-runner.js --specific middleware
 
 # 运行WebSocket相关测试
 node test/test-runner.js --specific websocket
+
+# 运行HTTPS测试用例
+npm run test:https:1  # 最小配置启动HTTPS代理
+npm run test:https:2  # Direct Response模式测试
+npm run test:https:3  # Modify And Forward模式测试
+npm run test:https:4  # SOCKS5代理转发测试
+
+# 运行所有HTTPS测试
+node test/run-all-https-tests.js
 ```
 
 ## 📋 测试用例覆盖
@@ -100,6 +138,31 @@ node test/test-runner.js --specific websocket
 - **TC-CERT-002**: 动态证书生成测试
 - **TC-CERT-003**: 证书验证测试
 - **TC-CERT-004**: HTTPS代理功能测试
+
+### HTTPS测试用例
+
+#### 1. 最小配置启动HTTPS代理 (`https-test-case-1-minimal-config.js`)
+- **TC-HTTPS-001**: HTTPS代理服务器启动测试
+- **TC-HTTPS-002**: HTTPS代理基本功能测试
+- **TC-HTTPS-003**: HTTPS代理服务器关闭测试
+
+#### 2. Direct Response模式测试 (`https-test-case-2-direct-response.js`)
+- **TC-HTTPS-004**: HTTPS请求拦截测试
+- **TC-HTTPS-005**: 多个HTTPS请求拦截测试
+- **TC-HTTPS-006**: 自定义状态码响应测试
+- **TC-HTTPS-007**: 自定义响应头测试
+
+#### 3. Modify And Forward模式测试 (`https-test-case-3-modify-and-forward.js`)
+- **TC-HTTPS-008**: HTTPS请求头修改测试
+- **TC-HTTPS-009**: HTTPS URL重定向测试
+- **TC-HTTPS-010**: HTTPS请求方法修改测试
+- **TC-HTTPS-011**: HTTPS链式修改测试
+
+#### 4. SOCKS5代理转发测试 (`https-test-case-4-socks5-proxy.js`)
+- **TC-HTTPS-012**: SOCKS5代理配置测试
+- **TC-HTTPS-013**: SOCKS5代理转发测试
+- **TC-HTTPS-014**: HTTPS代理链测试
+- **TC-HTTPS-015**: HTTPS连接池测试
 
 ### 集成测试 (Integration Tests)
 
@@ -214,10 +277,19 @@ LOG_LEVEL=debug node test/test-runner.js
 npx mocha test/unit/basic-proxy.test.js --grep "应该成功启动HTTP代理服务器"
 ```
 
+### 调试HTTPS测试用例
+```bash
+# 调试特定HTTPS测试用例
+node --inspect-brk test/https-test-case-1-minimal-config.js
+
+# 使用调试模式运行所有HTTPS测试
+node --inspect-brk test/run-all-https-tests.js
+```
+
 ## 📝 编写新测试
 
 ### 测试文件结构
-```javascript
+```
 describe('测试模块名称', function() {
     this.timeout(TEST_CONFIG.timeouts.medium);
     
@@ -239,7 +311,7 @@ describe('测试模块名称', function() {
 ```
 
 ### 使用测试工具
-```javascript
+```
 // 获取可用端口
 const port = portManager.getAvailablePort('proxy');
 
@@ -253,10 +325,14 @@ await TestUtils.waitFor(() => server.listening, 5000);
 const server = await TestUtils.createTestServer(port, handler);
 ```
 
+### 编写HTTPS测试用例
+HTTPS测试用例应继承现有测试模式，参考 `test/https-test-case-1-minimal-config.js` 文件结构。
+确保正确配置SSL证书路径，并处理HTTPS特有的连接和证书验证逻辑。
+
 ## 🔄 持续集成
 
 ### GitHub Actions 配置示例
-```yaml
+```
 name: Tests
 on: [push, pull_request]
 jobs:
@@ -272,7 +348,7 @@ jobs:
 ```
 
 ### 测试覆盖率
-```bash
+```
 # 安装覆盖率工具
 npm install --save-dev nyc
 
@@ -305,4 +381,4 @@ A: 可能是时序问题，尝试增加测试超时时间或添加适当的等�
 A: 使用 `describe.skip()` 或 `it.skip()` 跳过特定测试。
 
 ### Q: 如何添加新的测试类型？
-A: 在相应目录下创建测试文件，并更新测试运行器的配置。
+A: 在相应目录下创建测试文件，并更新测试运行器的配置.

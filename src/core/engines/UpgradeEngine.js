@@ -626,7 +626,11 @@ class UpgradeEngine {
         
         // 修改目标URL
         if (data.modifiedUrl) {
-            const target = this._parseTarget({ url: data.modifiedUrl });
+            const target = this._parseTarget({ 
+                url: data.modifiedUrl,
+                headers: context.request.headers,
+                connection: context.request.connection
+            });
             if (target) {
                 context.target = target;
                 

@@ -214,6 +214,45 @@ class CertificateManager extends EventEmitter {
      * 加载或生成CA证书
      */
     async _loadOrGenerateCA() {
+        // 检查是否配置了固定证书
+        const sslConfig = this.config.get('ssl') || this.config.get('certificate');
+        if (sslConfig && sslConfig.certificate && sslConfig.certificate.type === 'fixed') {
+            // 使用固定证书配置
+            const fixedCertConfig = sslConfig.certificate;
+            
+            try {
+                // 加载固定证书作为CA证书
+                if (fixedCertConfig.ca) {
+                    const caCertPem = await fs.promises.readFile(fixedCertConfig.ca, 'utf8');
+                    this.caCert = forge.pki.certificateFromPem(caCertPem);
+                    
+                    // 如果提供了CA私钥，也加载它
+                    if (fixedCertConfig.caKey) {
+                        const caKeyPem = await fs.promises.readFile(fixedCertConfig.caKey, 'utf8');
+                        this.caKey = forge.pki.privateKeyFromPem(caKeyPem);
+                    } else if (fixedCertConfig.key) {
+                        // 如果没有单独的CA私钥，使用服务器私钥
+                        const caKeyPem = await fs.promises.readFile(fixedCertConfig.key, 'utf8');
+                        this.caKey = forge.pki.privateKeyFromPem(caKeyPem);
+                    }
+                    
+                    if (this.logger) {
+                        this.logger.info('Fixed CA certificate loaded', {
+                            subject: this.caCert.subject.getField('CN').value
+                        });
+                    }
+                    
+                    return;
+                }
+            } catch (error) {
+                if (this.logger) {
+                    this.logger.warn('Failed to load fixed CA certificate, falling back to generated CA', {
+                        error: error.message
+                    });
+                }
+            }
+        }
+        
         try {
             // 尝试加载现有CA证书
             const caCertPem = await fs.promises.readFile(this.caCertPath, 'utf8');

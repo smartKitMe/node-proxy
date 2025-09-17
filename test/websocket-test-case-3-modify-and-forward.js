@@ -87,6 +87,8 @@ class WebSocketModifyAndForwardTest {
                         'user-agent': request.headers['user-agent'],
                         'x-custom-header': request.headers['x-custom-header'],
                         'x-modified-by': request.headers['x-modified-by'],
+                        'x-chain-step': request.headers['x-chain-step'],
+                        'x-timestamp': request.headers['x-timestamp'],
                         'sec-websocket-protocol': request.headers['sec-websocket-protocol']
                     },
                     timestamp: Date.now()
@@ -248,7 +250,7 @@ class WebSocketModifyAndForwardTest {
         console.log('   📝 修改WebSocket协议');
         
         return InterceptorResponse.modifyAndForward({
-            modifiedProtocol: 'chat, superchat'
+            modifiedProtocol: 'chat'
         });
     }
     
@@ -468,13 +470,16 @@ class WebSocketModifyAndForwardTest {
             
             try {
                 // 通过代理连接WebSocket，URL包含modify-protocol标识
-                const ws = new WebSocket(`ws://localhost:${this.wsServerPort}/websocket?modify-protocol=true`, {
-                    agent: new (require('http').Agent)({
-                        host: 'localhost',
-                        port: this.proxyPort
-                    }),
-                    protocol: 'original-protocol'
-                });
+                // 使用正确的WebSocket构造函数参数
+                const ws = new WebSocket(`ws://localhost:${this.wsServerPort}/websocket?modify-protocol=true`, 
+                    ['original-protocol', 'chat'],  // 协议参数应该是数组，包含原始协议和期望的协议
+                    {
+                        agent: new (require('http').Agent)({
+                            host: 'localhost',
+                            port: this.proxyPort
+                        })
+                    }
+                );
                 
                 let connectionInfoReceived = false;
                 
@@ -492,7 +497,8 @@ class WebSocketModifyAndForwardTest {
                             
                             // 验证协议是否被正确修改
                             const protocol = message.headers['sec-websocket-protocol'];
-                            const isProtocolModified = protocol && protocol.includes('chat');
+                            // 修改验证逻辑，检查是否为'chat'
+                            const isProtocolModified = protocol === 'chat';
                             
                             if (isProtocolModified) {
                                 console.log('   ✅ 协议修改验证成功');
@@ -560,12 +566,15 @@ class WebSocketModifyAndForwardTest {
             
             try {
                 // 通过代理连接WebSocket，URL包含chained-modifications标识
-                const ws = new WebSocket(`ws://localhost:${this.wsServerPort}/websocket?chained-modifications=true`, {
-                    agent: new (require('http').Agent)({
-                        host: 'localhost',
-                        port: this.proxyPort
-                    })
-                });
+                const ws = new WebSocket(`ws://localhost:${this.wsServerPort}/websocket?chained-modifications=true`, 
+                    ['original-protocol', 'echo-protocol'],  // 协议参数应该是数组
+                    {
+                        agent: new (require('http').Agent)({
+                            host: 'localhost',
+                            port: this.proxyPort
+                        })
+                    }
+                );
                 
                 let connectionInfoReceived = false;
                 
@@ -591,8 +600,7 @@ class WebSocketModifyAndForwardTest {
                                 headers['x-timestamp'];
                             
                             const hasCorrectUrl = url === '/websocket';
-                            const hasCorrectProtocol = headers['sec-websocket-protocol'] && 
-                                                     headers['sec-websocket-protocol'].includes('echo-protocol');
+                            const hasCorrectProtocol = headers['sec-websocket-protocol'] === 'echo-protocol';
                             
                             if (hasChainHeaders && hasCorrectUrl && hasCorrectProtocol) {
                                 console.log('   ✅ 链式修改验证成功');

@@ -24,12 +24,6 @@ class ProxyServer extends EventEmitter {
         // 中间件管理器
         this.middlewareManager = options.middlewareManager;
         
-        // 拦截器管理器
-        // this.interceptorManager = options.interceptorManager;
-        
-        // TLS管理器
-        // this.tlsManager = options.tlsManager;
-        
         // 处理引擎管理器
         this.engineManager = options.engineManager;
         
