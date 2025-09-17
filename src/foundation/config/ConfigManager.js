@@ -20,6 +20,11 @@ class ConfigManager extends IConfigProvider {
         // 初始化默认配置
         this._initializeDefaults();
         
+        // 合并传入的配置选项
+        if (options && typeof options === 'object') {
+            this.config = this._mergeConfig(this.config, options);
+        }
+        
         // 如果提供了配置文件路径，则加载配置
         if (this.configPath) {
             this._loadConfigFile();

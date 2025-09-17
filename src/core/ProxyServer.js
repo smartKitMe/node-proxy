@@ -141,8 +141,8 @@ class ProxyServer extends EventEmitter {
         
         try {
             // 获取配置，优先使用传入的参数
-            const finalPort = port || (this.config ? this.config.get('proxy.port', 6789) : 6789);
-            const finalHost = host || (this.config ? this.config.get('proxy.host', '0.0.0.0') : '0.0.0.0');
+            const finalPort = port || (this.config ? this.config.get('port', this.config.get('proxy.port', 6789)) : 6789);
+            const finalHost = host || (this.config ? this.config.get('host', this.config.get('proxy.host', '0.0.0.0')) : '0.0.0.0');
             
             // 创建HTTP服务器
             this.server = http.createServer();
@@ -541,7 +541,23 @@ class ProxyServer extends EventEmitter {
      * 获取服务器地址信息
      */
     getAddress() {
-        return this.server ? this.server.address() : null;
+        if (!this.server) return null;
+        
+        const address = this.server.address();
+        if (!address) return null;
+        
+        // 如果地址是127.0.0.1，但配置中指定了localhost，则返回localhost
+        if (address.address === '127.0.0.1' && this.config) {
+            const configHost = this.config.get('host', this.config.get('proxy.host'));
+            if (configHost === 'localhost') {
+                return {
+                    ...address,
+                    address: 'localhost'
+                };
+            }
+        }
+        
+        return address;
     }
 }
 

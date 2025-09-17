@@ -83,7 +83,19 @@ class RequestEngine {
             // 执行中间件（请求前）
             if (this.middlewareManager) {
                 await this.middlewareManager.executeBeforeRequest(context);
-                if (context.stopped) return;
+                if (context.stopped) {
+                    // 如果中间件停止了处理，确保响应被发送
+                    if (context.response && context.response.statusCode && !context.response.headersSent) {
+                        const headers = context.response.headers || { 'Content-Type': 'text/plain' };
+                        context.response.writeHead(context.response.statusCode, headers);
+                        if (context.response.body) {
+                            context.response.end(context.response.body);
+                        } else {
+                            context.response.end();
+                        }
+                    }
+                    return;
+                }
             }
             
             // 检查拦截器
@@ -301,39 +313,74 @@ class RequestEngine {
         const { response } = context;
         
         try {
-            // 设置响应头
-            const headers = this._prepareResponseHeaders(proxyResponse.headers);
-            response.writeHead(proxyResponse.statusCode, proxyResponse.statusMessage, headers);
+            // 创建响应对象，用于拦截器处理
+            context.response = {
+                statusCode: proxyResponse.statusCode,
+                statusMessage: proxyResponse.statusMessage,
+                headers: { ...proxyResponse.headers },
+                body: null // 我们将在数据接收时填充这个字段
+            };
             
-            // 记录响应大小
-            let responseSize = 0;
+            // 收集响应体数据
+            const chunks = [];
+            let totalLength = 0;
             
-            // 处理响应体
-            if (this._shouldDecompressResponse(proxyResponse)) {
-                // 需要解压缩的响应
-                this._handleCompressedResponse(context, proxyResponse, (data) => {
-                    responseSize += data.length;
-                    response.write(data);
-                }, () => {
-                    context.responseSize = responseSize;
+            proxyResponse.on('data', (chunk) => {
+                chunks.push(chunk);
+                totalLength += chunk.length;
+            });
+            
+            proxyResponse.on('end', async () => {
+                try {
+                    // 合并响应体
+                    const body = Buffer.concat(chunks, totalLength);
+                    context.response.body = body;
+                    
+                    // 执行响应拦截器
+                    if (this.interceptorManager) {
+                        const shouldIntercept = await this.interceptorManager.shouldInterceptResponse(context);
+                        if (shouldIntercept) {
+                            await this.interceptorManager.interceptResponse(context);
+                            
+                            // 处理拦截器响应
+                            if (context.interceptorResult) {
+                                const result = context.interceptorResult;
+                                
+                                if (result.shouldDirectResponse()) {
+                                    // 直接返回拦截器内容
+                                    await this._handleDirectResponseForInterceptor(context, result.data, response);
+                                    resolve();
+                                    return;
+                                } else if (result.shouldModifyAndForward()) {
+                                    // 修改响应后转发
+                                    this._applyResponseModifications(context, result);
+                                }
+                            }
+                        }
+                    }
+                    
+                    // 执行中间件（响应后）
+                    if (this.middlewareManager) {
+                        await this.middlewareManager.executeAfterResponse(context);
+                    }
+                    
+                    // 设置响应头
+                    const headers = this._prepareResponseHeaders(context.response.headers);
+                    response.writeHead(context.response.statusCode || proxyResponse.statusCode, context.response.statusMessage || proxyResponse.statusMessage, headers);
+                    
+                    // 发送响应体
+                    if (context.response.body) {
+                        response.write(context.response.body);
+                    }
+                    
                     response.end();
                     resolve();
-                }, reject);
-            } else {
-                // 直接转发响应
-                proxyResponse.on('data', (chunk) => {
-                    responseSize += chunk.length;
-                    response.write(chunk);
-                });
-                
-                proxyResponse.on('end', () => {
-                    context.responseSize = responseSize;
-                    response.end();
-                    resolve();
-                });
-                
-                proxyResponse.on('error', reject);
-            }
+                } catch (error) {
+                    reject(error);
+                }
+            });
+            
+            proxyResponse.on('error', reject);
             
         } catch (error) {
             reject(error);
@@ -454,7 +501,8 @@ class RequestEngine {
     async _handleDirectResponse(context, result) {
         const response = context.response;
         
-        if (response.headersSent) {
+        // 如果响应头已经发送，则不能发送直接响应
+        if (!response || response.headersSent) {
             if (this.logger) {
                 this.logger.warn('Cannot send direct response, headers already sent');
             }
@@ -467,7 +515,7 @@ class RequestEngine {
             const statusCode = result.statusCode || 200;
             
             // 添加默认头部
-            if (!headers['Content-Type']) {
+            if (!headers['Content-Type'] && !headers['content-type']) {
                 headers['Content-Type'] = 'text/plain';
             }
             
@@ -503,6 +551,59 @@ class RequestEngine {
         }
     }
     
+    /**
+     * 为拦截器处理直接响应
+     */
+    async _handleDirectResponseForInterceptor(context, result, response) {
+        if (response.headersSent) {
+            if (this.logger) {
+                this.logger.warn('Cannot send direct response, headers already sent');
+            }
+            return;
+        }
+        
+        try {
+            // 设置响应头
+            const headers = result.headers || {};
+            const statusCode = result.statusCode || 200;
+            
+            // 添加默认头部
+            if (!headers['Content-Type'] && !headers['content-type']) {
+                headers['Content-Type'] = 'text/plain';
+            }
+            
+            response.writeHead(statusCode, headers);
+            
+            // 发送响应体
+            if (result.body) {
+                if (typeof result.body === 'string') {
+                    response.end(result.body);
+                } else if (Buffer.isBuffer(result.body)) {
+                    response.end(result.body);
+                } else {
+                    response.end(JSON.stringify(result.body));
+                }
+            } else {
+                response.end();
+            }
+            
+            if (this.logger) {
+                this.logger.debug('Direct response sent', {
+                    statusCode,
+                    headers: Object.keys(headers)
+                });
+            }
+            
+        } catch (error) {
+            if (this.logger) {
+                this.logger.error('Failed to send direct response', {
+                    error: error.message
+                });
+            }
+            throw error;
+        }
+    }
+
     /**
      * 应用请求修改
      */
@@ -564,6 +665,48 @@ class RequestEngine {
     }
     
     /**
+     * 应用响应修改
+     */
+    _applyResponseModifications(context, result) {
+        const response = context.response;
+        const modifiedData = result.data;
+        
+        // 修改响应头
+        if (modifiedData.headers) {
+            Object.assign(response.headers, modifiedData.headers);
+        }
+        
+        // 修改状态码
+        if (modifiedData.statusCode) {
+            response.statusCode = modifiedData.statusCode;
+        }
+        
+        // 修改状态消息
+        if (modifiedData.statusMessage) {
+            response.statusMessage = modifiedData.statusMessage;
+        }
+        
+        // 修改响应体
+        if (modifiedData.body !== undefined) {
+            if (typeof modifiedData.body === 'string') {
+                response.body = Buffer.from(modifiedData.body);
+            } else if (Buffer.isBuffer(modifiedData.body)) {
+                response.body = modifiedData.body;
+            } else {
+                response.body = Buffer.from(JSON.stringify(modifiedData.body));
+            }
+        }
+        
+        if (this.logger) {
+            this.logger.debug('Response modified', {
+                statusCode: response.statusCode,
+                headersModified: !!modifiedData.headers,
+                bodyModified: modifiedData.body !== undefined
+            });
+        }
+    }
+    
+    /**
      * 处理错误
      */
     async _handleError(context, error) {
@@ -575,7 +718,37 @@ class RequestEngine {
             });
         }
         
-        // 发送错误响应
+        // 执行中间件错误处理
+        if (this.middlewareManager) {
+            try {
+                await this.middlewareManager.executeOnError(context, error);
+                // 如果中间件处理了错误并设置了响应，则直接返回
+                if (context.response && context.response.statusCode) {
+                    if (context.response && !context.response.headersSent) {
+                        try {
+                            const headers = context.response.headers || { 'Content-Type': 'application/json' };
+                            context.response.writeHead(context.response.statusCode, headers);
+                            if (context.response.body) {
+                                context.response.end(context.response.body);
+                            } else {
+                                context.response.end();
+                            }
+                            return;
+                        } catch (responseError) {
+                            // 忽略响应错误
+                        }
+                    }
+                }
+            } catch (middlewareError) {
+                if (this.logger) {
+                    this.logger.error('Middleware error handling failed', {
+                        error: middlewareError.message
+                    });
+                }
+            }
+        }
+        
+        // 发送默认错误响应
         if (context.response && !context.response.headersSent) {
             try {
                 let statusCode = 502;

@@ -1,0 +1,31 @@
+# Mocha 测试配置文件
+
+# 测试超时时间 (30秒)
+--timeout 30000
+
+# 测试报告格式
+--reporter spec
+
+# 递归查找测试文件
+--recursive
+
+# 测试文件匹配模式
+test/**/*.test.js
+
+# 启用颜色输出
+--colors
+
+# 在测试失败时退出
+--exit
+
+# 启用异步堆栈跟踪
+--async-stack-traces
+
+# 设置最大监听器数量
+--max-listeners 20
+
+# 启用实验性功能
+--experimental-loader
+
+# 忽略泄漏检测（对于某些异步测试）
+--check-leaks false

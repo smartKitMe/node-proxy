@@ -45,6 +45,11 @@ class InterceptorManager extends EventEmitter {
             throw new Error('Interceptor must have a name');
         }
         
+        // 如果是简化格式的拦截器，转换为标准格式
+        if (interceptor.type && interceptor.handler && !interceptor.shouldIntercept) {
+            interceptor = this._convertLegacyInterceptor(interceptor);
+        }
+        
         if (typeof interceptor.shouldIntercept !== 'function') {
             throw new Error('Interceptor must have a shouldIntercept method');
         }
@@ -96,6 +101,78 @@ class InterceptorManager extends EventEmitter {
         return this;
     }
     
+    /**
+     * 转换旧格式拦截器为新格式
+     */
+    _convertLegacyInterceptor(legacyInterceptor) {
+        const { InterceptorResponse, InterceptorResult } = require('../../types/InterceptorTypes');
+        
+        const convertedInterceptor = {
+            name: legacyInterceptor.name,
+            priority: legacyInterceptor.priority || 100,
+            condition: legacyInterceptor.condition,
+            
+            // 实现shouldIntercept方法
+            shouldIntercept: (context, type) => {
+                // 检查类型匹配
+                if (legacyInterceptor.type && legacyInterceptor.type !== type) {
+                    return false;
+                }
+                
+                // 检查条件
+                if (legacyInterceptor.condition && typeof legacyInterceptor.condition === 'function') {
+                    return legacyInterceptor.condition(context);
+                }
+                
+                return true;
+            }
+        };
+        
+        // 根据类型添加对应的处理方法
+        if (legacyInterceptor.type === 'request' || !legacyInterceptor.type) {
+            convertedInterceptor.interceptRequest = async (context) => {
+                try {
+                    const result = await legacyInterceptor.handler(context);
+                    
+                    // 如果handler返回了context且设置了response，表示要直接响应
+                    if (result && result.response) {
+                        return InterceptorResponse.directResponse(result.response);
+                    }
+                    
+                    // 否则表示修改后转发
+                    return InterceptorResponse.modifyAndForward(result || context);
+                } catch (error) {
+                    if (this.logger) {
+                        this.logger.error('Legacy interceptor handler failed', {
+                            name: legacyInterceptor.name,
+                            error: error.message
+                        });
+                    }
+                    throw error;
+                }
+            };
+        }
+        
+        if (legacyInterceptor.type === 'response') {
+            convertedInterceptor.interceptResponse = async (context) => {
+                try {
+                    const result = await legacyInterceptor.handler(context);
+                    return InterceptorResponse.modifyAndForward(result || context);
+                } catch (error) {
+                    if (this.logger) {
+                        this.logger.error('Legacy interceptor handler failed', {
+                            name: legacyInterceptor.name,
+                            error: error.message
+                        });
+                    }
+                    throw error;
+                }
+            };
+        }
+        
+        return convertedInterceptor;
+    }
+
     /**
      * 注销拦截器
      */
@@ -417,9 +494,9 @@ class InterceptorManager extends EventEmitter {
     _sortInterceptors() {
         this.sortedInterceptors = Array.from(this.interceptors.values())
             .sort((a, b) => {
-                // 按优先级排序（数字越小优先级越高）
+                // 按优先级排序（数字越大优先级越高）
                 if (a.priority !== b.priority) {
-                    return a.priority - b.priority;
+                    return b.priority - a.priority;
                 }
                 // 优先级相同时按名称排序
                 return a.name.localeCompare(b.name);

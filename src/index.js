@@ -199,6 +199,13 @@ class NodeMITMProxy extends EventEmitter {
     }
     
     /**
+     * 添加拦截器 (兼容性方法)
+     */
+    addInterceptor(interceptor) {
+        return this.intercept(interceptor);
+    }
+    
+    /**
      * 获取配置
      */
     getConfig(key) {
@@ -252,15 +259,17 @@ class NodeMITMProxy extends EventEmitter {
      */
     getServerInfo() {
         const address = this.running ? this.proxyServer.getAddress() : null;
-        const status = this.running ? this.proxyServer.getStatus() : null;
+        const serverStatus = this.running ? this.proxyServer.getStatus() : null;
         
         return {
             version: this.getVersion(),
             initialized: this.initialized,
             running: this.running,
-            port: address ? address.port : null,
-            host: address ? address.address : null,
-            uptime: status ? status.uptime : 0,
+            status: this.running ? 'running' : (this.initialized ? 'stopped' : 'not_initialized'),
+            port: address ? address.port : (this.config ? this.config.get('port', this.config.get('proxy.port')) : null),
+            host: address ? address.address : (this.config ? this.config.get('host', this.config.get('proxy.host')) : null),
+            startTime: serverStatus && serverStatus.stats ? serverStatus.stats.startTime : null,
+            uptime: serverStatus ? serverStatus.uptime : 0,
             stats: this.getStats()
         };
     }
