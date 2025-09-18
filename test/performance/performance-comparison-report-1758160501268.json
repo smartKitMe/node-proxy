@@ -1,0 +1,41 @@
+{
+  "timestamp": "2025-09-18T01:55:01.266Z",
+  "testConfig": {
+    "targetUrl": "http://httpbin.org/get",
+    "httpsTargetUrl": "https://httpbin.org/get",
+    "testCount": 100,
+    "concurrent": 10,
+    "timeout": 10000
+  },
+  "original": {
+    "version": "优化前",
+    "total": 100,
+    "success": 100,
+    "failed": 0,
+    "avgDuration": 606.72,
+    "minDuration": 254.75,
+    "maxDuration": 2458.63,
+    "successRate": 100,
+    "throughput": 1.65,
+    "poolHitRate": 0.7
+  },
+  "optimized": {
+    "version": "优化后",
+    "total": 100,
+    "success": 100,
+    "failed": 0,
+    "avgDuration": 492.21,
+    "minDuration": 253.84,
+    "maxDuration": 3300.63,
+    "successRate": 100,
+    "throughput": 2.03,
+    "poolHitRate": 0.7
+  },
+  "comparison": {
+    "durationImprovement": 114.51,
+    "durationImprovementPercent": 18.87,
+    "successRateImprovement": 0,
+    "throughputImprovement": 0.38,
+    "poolHitRateImprovement": 0
+  }
+}
